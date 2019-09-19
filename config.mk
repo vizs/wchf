@@ -4,7 +4,7 @@ __CONFIG_NAME__ = windowchefrc
 VERCMD ?= git describe 2> /dev/null
 __THIS_VERSION__ = $(shell $(VERCMD) || cat VERSION)
 
-PREFIX    = /usr/local
+PREFIX    = $(HOME)/usr/local
 MANPREFIX = $(PREFIX)/share/man
 MANDIR    = $(MANPREFIX)/man1
 DOCPREFIX = $(PREFIX)/share/doc
