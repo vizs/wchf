@@ -28,15 +28,17 @@ initinfodir()
         createfile(buf);
     }
 
-    createfile("/tmp/info/wm/groups/num");
+    char *grp[2] = {"num", "cur"};
+    for (int i = 0; i < 2; i++) {
+        snprintf(buf, sizeof buf, "/tmp/info/wm/groups/%s", grp[i]);
+        createfile(buf);
+    }
 }
-
-/* internal borders */
 
 void
 infobordersize(int bordersize)
 {
-    FILE* file = fopen("/tmp/info/wm/borders/size", "w");
+    FILE *file = fopen("/tmp/info/wm/borders/size", "w");
     fprintf(file, "%d", bordersize);
     fclose(file);
 }
@@ -44,7 +46,7 @@ infobordersize(int bordersize)
 void
 infoborderselcol(int col)
 {
-    FILE* file = fopen("/tmp/info/wm/borders/selcol", "w");
+    FILE *file = fopen("/tmp/info/wm/borders/selcol", "w");
     fprintf(file, "#%x", col);
     fclose(file);
 }
@@ -52,33 +54,7 @@ infoborderselcol(int col)
 void
 infobordernormcol(int col)
 {
-    FILE* file = fopen("/tmp/info/wm/borders/normcol", "w");
-    fprintf(file, "#%x", col);
-    fclose(file);
-}
-
-/* external borders */
-
-void
-infoobordersize(int bordersize)
-{
-    FILE* file = fopen("/tmp/info/wm/borders/osize", "w");
-    fprintf(file, "%d", bordersize);
-    fclose(file);
-}
-
-void
-infooborderselcol(int col)
-{
-    FILE* file = fopen("/tmp/info/wm/borders/oselcol", "w");
-    fprintf(file, "#%x", col);
-    fclose(file);
-}
-
-void
-infoobordernormcol(int col)
-{
-    FILE* file = fopen("/tmp/info/wm/borders/onormcol", "w");
+    FILE *file = fopen("/tmp/info/wm/borders/normcol", "w");
     fprintf(file, "#%x", col);
     fclose(file);
 }
@@ -86,7 +62,15 @@ infoobordernormcol(int col)
 void
 infosetgroupnum(int num)
 {
-    FILE* file = fopen("/tmp/info/wm/groups/num", "w");
+    FILE *file = fopen("/tmp/info/wm/groups/num", "w");
+    fprintf(file, "%d", num);
+    fclose(file);
+}
+
+void
+infosetactivegroup(int num)
+{
+    FILE *file = fopen("/tmp/info/wm/groups/cur", "w");
     fprintf(file, "%d", num);
     fclose(file);
 }
