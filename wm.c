@@ -194,6 +194,7 @@ static void ipc_group_toggle(uint32_t *);
 static void ipc_group_activate_specific(uint32_t *);
 static void ipc_wm_quit(uint32_t *);
 static void ipc_wm_config(uint32_t *);
+static void ipc_toggle_borders(uint32_t *);
 
 static void pointer_init(void);
 static int16_t pointer_modfield_from_keysym(xcb_keysym_t);
@@ -1700,10 +1701,10 @@ get_geometry(xcb_window_t *win, int16_t *x, int16_t *y, uint16_t *width, uint16_
 static void
 set_borders(struct client *client, uint32_t color)
 {
-    if (client == NULL || conf.borders == false)
+    if (client == NULL)
         return;
     uint32_t values[1];
-    values[0] = conf.border_width;
+    values[0] = conf.borders == true ? conf.border_width : 0;
     xcb_configure_window(conn, client->window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
@@ -2680,6 +2681,7 @@ register_ipc_handlers(void)
     ipc_handlers[IPCGroupActivateSpecific] = ipc_group_activate_specific;
     ipc_handlers[IPCWMQuit]                = ipc_wm_quit;
     ipc_handlers[IPCWMConfig]              = ipc_wm_config;
+    ipc_handlers[IPCToggleBorders]         = ipc_toggle_borders;
 }
 
 static void
@@ -3042,6 +3044,17 @@ ipc_wm_quit(uint32_t *d)
 }
 
 static void
+ipc_toggle_borders(uint32_t *d)
+{
+    (void)(d);
+    int size;
+    conf.borders = !conf.borders;
+    refresh_borders();
+    size = conf.borders == true ? conf.border_width : 0;
+    infobordersize(size);
+}
+
+static void
 ipc_wm_config(uint32_t *d)
 {
     enum IPCConfig key;
@@ -3102,10 +3115,8 @@ ipc_wm_config(uint32_t *d)
         break;
     case IPCConfigEnableBorders:
         conf.borders = d[1];
-        if (conf.borders == false)
-            infobordersize(0);
-        else
-            infobordersize(conf.border_width);
+        int size = conf.borders == true ? conf.border_width : 0;
+        infobordersize(size);
         break;
     case IPCConfigEnableLastWindowFocusing:
         conf.last_window_focusing = d[1];

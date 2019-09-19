@@ -38,6 +38,7 @@ enum IPCCommand {
     IPCGroupActivateSpecific,
     IPCWMQuit,
     IPCWMConfig,
+    IPCToggleBorders,
     NR_IPC_COMMANDS
 };
 

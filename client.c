@@ -80,7 +80,8 @@ static struct Command c[] = {
     { "group_toggle"              , IPCGroupToggle           ,  1 , fn_naturals } ,
     { "group_activate_specific"   , IPCGroupActivateSpecific ,  1 , fn_naturals } ,
     { "wm_quit"                   , IPCWMQuit                ,  1 , fn_naturals } ,
-    { "wm_config"                 , IPCWMConfig              , -1 , fn_config   },
+    { "wm_config"                 , IPCWMConfig              , -1 , fn_config   } ,
+    { "toggle_borders"            , IPCToggleBorders         ,  0 , NULL        } ,
 };
 
 static struct ConfigEntry configs[] = {

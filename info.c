@@ -24,7 +24,6 @@ initinfodir()
     char buf[256];
     for (int i = 0; i < 3; i++) {
         snprintf(buf, sizeof buf, "/tmp/info/wm/borders/%s", bor[i]);
-        snprintf(buf, sizeof buf, "/tmp/info/wm/borders/o%s", bor[i]);
         createfile(buf);
     }
 
