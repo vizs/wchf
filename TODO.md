@@ -1,1 +1,1 @@
-- Unlimited borders
+- toggle border per window
