@@ -17,10 +17,8 @@ void
 initinfodir()
 {
     char *dirs[3] = {"/tmp/info/wm", "/tmp/info/wm/borders", "/tmp/info/wm/groups"};
-    for (int i = 0; i < 3; i++) {
-    puts("creating dir");
+    for (int i = 0; i < 3; i++)
         mkdir(dirs[i], 0777);
-    }
 
     char *bor[3] = {"size", "selcol", "normcol"};
     char buf[256];
@@ -28,10 +26,8 @@ initinfodir()
         snprintf(buf, sizeof buf, "/tmp/info/wm/borders/%s", bor[i]);
         snprintf(buf, sizeof buf, "/tmp/info/wm/borders/o%s", bor[i]);
         createfile(buf);
-    puts("creating borders");
     }
 
-    puts("creating groups");
     createfile("/tmp/info/wm/groups/num");
 }
 

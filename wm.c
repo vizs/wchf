@@ -210,6 +210,8 @@ static void version(void);
 static void load_defaults(void);
 static void load_config(char *);
 
+static void set_cursor();
+
 /*
  * Gracefully disconnect.
  */
@@ -3645,6 +3647,21 @@ handle_child(int sig)
         wait(NULL);
 }
 
+void
+set_cursor()
+{
+    static xcb_font_t cursor_font;
+    int glyph = 68;
+    cursor_font = xcb_generate_id(conn);
+    xcb_open_font(conn, cursor_font, strlen("cursor"), "cursor");
+    xcb_cursor_t cursor = xcb_generate_id(conn);
+    xcb_create_glyph_cursor(conn, cursor, cursor_font, cursor_font, glyph,
+                            glyph + 1, 0x3232, 0x3232, 0x3232, 0xeeee,
+                            0xeeee, 0xeeec);
+    xcb_change_window_attributes(conn, scr->root, XCB_CW_CURSOR, &cursor);
+    xcb_free_cursor(conn, cursor);
+}
+
 int main(int argc, char *argv[])
 {
     int opt;
@@ -3673,13 +3690,16 @@ int main(int argc, char *argv[])
 
     if (setup() < 0)
         errx(EXIT_FAILURE, "error connecting to X");
-    /* if not set, get path of the rc file */
+
+    set_cursor();
 
     signal(SIGCHLD, handle_child);
 
     /* execute config file */
-    if (config_path[0] != '\0')
-        load_config(config_path);
+    if (config_path[0] == '\0')
+        snprintf(config_path, MAXLEN * sizeof(char),
+                 "%s/etc/xorg.d/wchf.d/wchfrc", getenv("HOME"));
+    load_config(config_path);
 
     run();
 

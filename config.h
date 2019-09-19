@@ -53,7 +53,7 @@
 #define DEFAULT_RIGHT_BUTTON_ACTION POINTER_ACTION_RESIZE_CORNER
 
 /* default pointer modifier (super key). Set to XCB_MOD_MASK_1 for alt */
-#define POINTER_MODIFIER XCB_MOD_MASK_4
+#define POINTER_MODIFIER XCB_MOD_MASK_1
 
 /* default mouse button for click to focus. -1 for none, 0 for any
    1, 2, 3 for left-click, middle-click, right-click */

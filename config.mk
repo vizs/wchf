@@ -1,6 +1,6 @@
-__NAME__ = windowchef
+__NAME__ = wchf
 __NAME_CLIENT__ = waitron
-__CONFIG_NAME__ = windowchefrc
+__CONFIG_NAME__ = wchfrc
 VERCMD ?= git describe 2> /dev/null
 __THIS_VERSION__ = $(shell $(VERCMD) || cat VERSION)
 
