@@ -53,55 +53,55 @@ struct ConfigEntry {
 
 /* vim-tabularize is cool, i swear */
 static struct Command c[] = {
-    { "window_move"               , IPCWindowMove            ,  2 , fn_offset   } ,
-    { "window_move_absolute"      , IPCWindowMoveAbsolute    ,  2 , fn_offset   } ,
-    { "window_resize"             , IPCWindowResize          ,  2 , fn_offset   } ,
-    { "window_resize_absolute"    , IPCWindowResizeAbsolute  ,  2 , fn_naturals } ,
-    { "window_maximize"           , IPCWindowMaximize        ,  0 , NULL        } ,
-    { "window_unmaximize"         , IPCWindowUnmaximize      ,  0 , NULL        } ,
-    { "window_hor_maximize"       , IPCWindowHorMaximize     ,  0 , NULL        } ,
-    { "window_ver_maximize"       , IPCWindowVerMaximize     ,  0 , NULL        } ,
-    { "window_monocle"            , IPCWindowMonocle         ,  0 , NULL        } ,
-    { "window_close"              , IPCWindowClose           ,  0 , NULL        } ,
-    { "window_put_in_grid"        , IPCWindowPutInGrid       ,  6 , fn_hack     } ,
-    { "window_snap"               , IPCWindowSnap            ,  1 , fn_position } ,
-    { "window_cycle"              , IPCWindowCycle           ,  0 , NULL        } ,
-    { "window_rev_cycle"          , IPCWindowRevCycle        ,  0 , NULL        } ,
-    { "window_cycle_in_group"     , IPCWindowCycleInGroup    ,  0 , NULL        } ,
-    { "window_rev_cycle_in_group" , IPCWindowRevCycleInGroup ,  0 , NULL        } ,
-    { "window_cardinal_focus"     , IPCWindowCardinalFocus   ,  1 , fn_direction} ,
-    { "window_focus"              , IPCWindowFocus           ,  1 , fn_hex      } ,
-    { "window_focus_last"         , IPCWindowFocusLast       ,  0 , NULL        } ,
-    { "group_add_window"          , IPCGroupAddWindow        ,  1 , fn_naturals } ,
-    { "group_remove_window"       , IPCGroupRemoveWindow     ,  0 , NULL        } ,
-    { "group_remove_all_windows"  , IPCGroupRemoveAllWindows ,  1 , fn_naturals } ,
-    { "group_activate"            , IPCGroupActivate         ,  1 , fn_naturals } ,
-    { "group_deactivate"          , IPCGroupDeactivate       ,  1 , fn_naturals } ,
-    { "group_toggle"              , IPCGroupToggle           ,  1 , fn_naturals } ,
-    { "group_activate_specific"   , IPCGroupActivateSpecific ,  1 , fn_naturals } ,
-    { "wm_quit"                   , IPCWMQuit                ,  1 , fn_naturals } ,
-    { "wm_config"                 , IPCWMConfig              , -1 , fn_config   } ,
-    { "toggle_borders"            , IPCToggleBorders         ,  0 , NULL        } ,
+    { "window_move"               , IPCWindowMove            ,  2 , fn_offset    },
+    { "window_move_absolute"      , IPCWindowMoveAbsolute    ,  2 , fn_offset    },
+    { "window_resize"             , IPCWindowResize          ,  2 , fn_offset    },
+    { "window_resize_absolute"    , IPCWindowResizeAbsolute  ,  2 , fn_naturals  },
+    { "window_maximize"           , IPCWindowMaximize        ,  0 , NULL         },
+    { "window_unmaximize"         , IPCWindowUnmaximize      ,  0 , NULL         },
+    { "window_hor_maximize"       , IPCWindowHorMaximize     ,  0 , NULL         },
+    { "window_ver_maximize"       , IPCWindowVerMaximize     ,  0 , NULL         },
+    { "window_monocle"            , IPCWindowMonocle         ,  0 , NULL         },
+    { "window_close"              , IPCWindowClose           ,  0 , NULL         },
+    { "window_put_in_grid"        , IPCWindowPutInGrid       ,  6 , fn_hack      },
+    { "window_snap"               , IPCWindowSnap            ,  1 , fn_position  },
+    { "window_cycle"              , IPCWindowCycle           ,  0 , NULL         },
+    { "window_rev_cycle"          , IPCWindowRevCycle        ,  0 , NULL         },
+    { "window_cycle_in_group"     , IPCWindowCycleInGroup    ,  0 , NULL         },
+    { "window_rev_cycle_in_group" , IPCWindowRevCycleInGroup ,  0 , NULL         },
+    { "window_cardinal_focus"     , IPCWindowCardinalFocus   ,  1 , fn_direction },
+    { "window_focus"              , IPCWindowFocus           ,  1 , fn_hex       },
+    { "window_focus_last"         , IPCWindowFocusLast       ,  0 , NULL         },
+    { "group_add_window"          , IPCGroupAddWindow        ,  1 , fn_naturals  },
+    { "group_remove_window"       , IPCGroupRemoveWindow     ,  0 , NULL         },
+    { "group_remove_all_windows"  , IPCGroupRemoveAllWindows ,  1 , fn_naturals  },
+    { "group_activate"            , IPCGroupActivate         ,  1 , fn_naturals  },
+    { "group_deactivate"          , IPCGroupDeactivate       ,  1 , fn_naturals  },
+    { "group_toggle"              , IPCGroupToggle           ,  1 , fn_naturals  },
+    { "group_activate_specific"   , IPCGroupActivateSpecific ,  1 , fn_naturals  },
+    { "wm_quit"                   , IPCWMQuit                ,  1 , fn_naturals  },
+    { "wm_config"                 , IPCWMConfig              , -1 , fn_config    },
+    { "toggle_borders"            , IPCToggleBorders         ,  0 , NULL         },
 };
 
 static struct ConfigEntry configs[] = {
-    { "border_width"        , IPCConfigBorderWidth       , 1 , fn_naturals },
-    { "color_focused"       , IPCConfigColorFocused      , 1 , fn_hex      },
-    { "color_unfocused"     , IPCConfigColorUnfocused    , 1 , fn_hex      },
-    { "gap_width"           , IPCConfigGapWidth          , 2 , fn_gap      },
-    { "grid_gap_width"      , IPCConfigGridGapWidth      , 1 , fn_naturals },
-    { "cursor_position"     , IPCConfigCursorPosition    , 1 , fn_position },
-    { "groups_nr"           , IPCConfigGroupsNr          , 1 , fn_naturals },
-    { "enable_sloppy_focus" , IPCConfigEnableSloppyFocus , 1 , fn_bool     },
-    { "enable_resize_hints" , IPCConfigEnableResizeHints , 1 , fn_bool     },
-    { "sticky_windows"      , IPCConfigStickyWindows     , 1 , fn_bool     },
-    { "enable_borders"      , IPCConfigEnableBorders     , 1 , fn_bool     },
-    { "enable_last_window_focusing", IPCConfigEnableLastWindowFocusing, 1 , fn_bool },
-    { "apply_settings"      , IPCConfigApplySettings     , 1 , fn_bool     },
-    { "replay_click_on_focus" , IPCConfigReplayClickOnFocus, 1, fn_bool    },
-    { "pointer_actions"     , IPCConfigPointerActions    , 3 , fn_pac      },
-    { "pointer_modifier"    , IPCConfigPointerModifier   , 1 , fn_mod      },
-    { "click_to_focus"      , IPCConfigClickToFocus      , 1 , fn_button   },
+    { "border_width"                , IPCConfigBorderWidth              , 1 , fn_naturals },
+    { "color_focused"               , IPCConfigColorFocused             , 1 , fn_hex      },
+    { "color_unfocused"             , IPCConfigColorUnfocused           , 1 , fn_hex      },
+    { "gap_width"                   , IPCConfigGapWidth                 , 2 , fn_gap      },
+    { "grid_gap_width"              , IPCConfigGridGapWidth             , 1 , fn_naturals },
+    { "cursor_position"             , IPCConfigCursorPosition           , 1 , fn_position },
+    { "groups_nr"                   , IPCConfigGroupsNr                 , 1 , fn_naturals },
+    { "enable_sloppy_focus"         , IPCConfigEnableSloppyFocus        , 1 , fn_bool     },
+    { "enable_resize_hints"         , IPCConfigEnableResizeHints        , 1 , fn_bool     },
+    { "sticky_windows"              , IPCConfigStickyWindows            , 1 , fn_bool     },
+    { "enable_borders"              , IPCConfigEnableBorders            , 1 , fn_bool     },
+    { "enable_last_window_focusing" , IPCConfigEnableLastWindowFocusing , 1 , fn_bool     },
+    { "apply_settings"              , IPCConfigApplySettings            , 1 , fn_bool     },
+    { "replay_click_on_focus"       , IPCConfigReplayClickOnFocus       , 1 , fn_bool     },
+    { "pointer_actions"             , IPCConfigPointerActions           , 3 , fn_pac      },
+    { "pointer_modifier"            , IPCConfigPointerModifier          , 1 , fn_mod      },
+    { "click_to_focus"              , IPCConfigClickToFocus             , 1 , fn_button   },
 };
 
 /*
@@ -147,7 +147,8 @@ fn_naturals(uint32_t *data, int argc, char **argv)
 }
 
 static bool
-fn_bool(uint32_t *data, int argc, char **argv) {
+fn_bool(uint32_t *data, int argc, char **argv)
+{
     int i = 0;
     char *arg;
     do {
@@ -167,7 +168,8 @@ fn_bool(uint32_t *data, int argc, char **argv) {
 }
 
 static bool
-fn_config(uint32_t *data, int argc, char **argv) {
+fn_config(uint32_t *data, int argc, char **argv)
+{
     char *key;
     bool status;
     int i;
@@ -186,9 +188,8 @@ fn_config(uint32_t *data, int argc, char **argv) {
 
         if (status == false)
             errx(EXIT_FAILURE, "malformed input");
-    } else {
-        errx(EXIT_FAILURE, "no such config key");
-    }
+    } else
+        errx(EXIT_FAILURE, "no such config key %s", argv[0]);
     return true;
 }
 
@@ -252,6 +253,7 @@ fn_pac(uint32_t *data, int argc, char **argv)
 
     return true;
 }
+
 static bool
 fn_mod(uint32_t *data, int argc, char **argv)
 {
@@ -265,6 +267,7 @@ fn_mod(uint32_t *data, int argc, char **argv)
 
     return true;
 }
+
 static bool
 fn_button(uint32_t *data, int argc, char **argv)
 {
@@ -466,7 +469,7 @@ int main(int argc, char **argv)
             send_command(&c[i], command_argc, command_argv);
 
     } else {
-        errx(EXIT_FAILURE, "no such command");
+        errx(EXIT_FAILURE, "no such command %s", argv[0]);
     }
 
     if (conn != NULL)
