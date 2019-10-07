@@ -9,7 +9,7 @@ void
 createfile(char *path)
 {
     FILE *file = fopen(path, "w");
-    fprintf(file, "0");
+    fprintf(file, "1");
     fclose(file);
 }
 
