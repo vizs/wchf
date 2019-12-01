@@ -27,8 +27,8 @@ initinfodir()
         createfile(buf);
     }
 
-    char *grp[2] = {"num", "cur"};
-    for (int i = 0; i < 2; i++) {
+    char *grp[3] = {"num", "cur", "main"};
+    for (int i = 0; i < 3; i++) {
         snprintf(buf, sizeof buf, "/tmp/info/wm/groups/%s", grp[i]);
         createfile(buf);
     }
@@ -67,9 +67,21 @@ infosetgroupnum(int num)
 }
 
 void
-infosetactivegroup(int num)
+infosetactivegroups(int len, int nums[])
 {
     FILE *file = fopen("/tmp/info/wm/groups/cur", "w");
+    for (int i = 0; i < len; i++) {
+        fprintf(file, "%d", nums[i]);
+        if (i != len - 1)
+            fprintf(file, " ");
+    }
+    fclose(file);
+}
+
+void
+infosetmaingroup(int num)
+{
+    FILE *file = fopen("/tmp/info/wm/groups/main", "w");
     fprintf(file, "%d", num);
     fclose(file);
 }

@@ -1708,10 +1708,8 @@ set_borders(struct client *client, uint32_t color)
     xcb_configure_window(conn, client->window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
-    if (conf.borders == true) {
-        values[0] = color;
-        xcb_change_window_attributes(conn, client->window, XCB_CW_BORDER_PIXEL, values);
-    }
+    values[0] = color;
+    xcb_change_window_attributes(conn, client->window, XCB_CW_BORDER_PIXEL, values);
 }
 
 /*
@@ -1973,7 +1971,7 @@ group_activate_specific(uint32_t group)
             group_deactivate(i);
     }
     update_group_list();
-    infosetactivegroup(group + 1);
+    infosetmaingroup(group + 1);
 }
 
 static void
@@ -1983,6 +1981,8 @@ update_group_list(void)
     struct client *client;
     bool first = true;
     uint32_t data[1];
+    int counter = 0;
+    int groups[conf.groups];
 
     for (unsigned int i = 0; i < conf.groups; i++) {
         /* deactivate group if no window in group */
@@ -1995,6 +1995,8 @@ update_group_list(void)
         if (group_in_use[i]) {
             uint8_t mode = XCB_PROP_MODE_APPEND;
             data[0] = i + 1;
+            groups[counter] = i + 1;
+            counter++;
             if (first) {
                 mode = XCB_PROP_MODE_REPLACE;
                 first = false;
@@ -2002,6 +2004,8 @@ update_group_list(void)
             xcb_change_property(conn, mode, scr->root, ATOMS[WINDOWCHEF_ACTIVE_GROUPS], XCB_ATOM_INTEGER, 32, 1, data);
         }
     }
+
+    infosetactivegroups(counter, groups);
 
     if (first) {
         data[0] = 0;
@@ -2980,6 +2984,8 @@ ipc_window_focus(uint32_t *d)
 
     if (client != NULL)
         set_focused(client);
+
+    refresh_borders();
 }
 
 static void
