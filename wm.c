@@ -740,9 +740,6 @@ setup_window(xcb_window_t win)
         client->height_inc = hints.height_inc;
     }
 
-    if (!is_special(client))
-        draw_decor(client);
-
     update_window_status(client);
     DMSG("new window was born 0x%08x\n", client->window);
 
@@ -890,8 +887,9 @@ close_window(struct client *client)
 static void
 delete_window(xcb_window_t win)
 {
-    xcb_client_message_event_t ev;
+    undraw_decor(find_client(&win));
 
+    xcb_client_message_event_t ev;
     ev.response_type = XCB_CLIENT_MESSAGE;
     ev.sequence = 0;
     ev.format = 32;
@@ -901,7 +899,6 @@ delete_window(xcb_window_t win)
     ev.data.data32[1] = XCB_CURRENT_TIME;
 
     xcb_send_event(conn, 0, win, XCB_EVENT_MASK_NO_EVENT, (char *)&ev);
-    undraw_decor(find_client(&win));
 }
 
 /*
@@ -919,7 +916,6 @@ teleport_window(xcb_window_t win, int16_t x, int16_t y)
 
     xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
     update_window_status(client);
-    draw_decor(client);
 
     xcb_flush(conn);
 }
@@ -961,7 +957,6 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 
     xcb_configure_window(conn, win, mask, val);
     update_window_status(client);
-    draw_decor(client);
 }
 
 /*
@@ -1797,7 +1792,7 @@ draw_decor(struct client *client)
     case 1: /* bottom */
         dh  = decor.size;
         dw += de;
-        dy += client->geom.height;
+        dy += client->geom.height - de;
         break;
     case 2: /* left */
         dw  = decor.size;
@@ -1813,7 +1808,7 @@ draw_decor(struct client *client)
         return;
     }
     client->decor_win = xcb_generate_id(conn);
-    values[0] = client == focused_win ? decor.focus : decor.unfocus;
+    values[0] = client == focused_win ? conf.focus_color : conf.unfocus_color;
     xcb_create_window(conn,
                       0, client->decor_win, scr->root,
                       dx, dy, dw, dh, 0,
@@ -1947,6 +1942,9 @@ update_window_status(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ATOMS[WINDOWCHEF_STATUS], XCB_ATOM_STRING, 8, size, str);
     free(str);
+
+    if (!is_special(client))
+        draw_decor(client); /* it is better to have it here */
 }
 
 static void
@@ -3711,8 +3709,6 @@ load_defaults(void)
 
     decor.side = DECOR_SIDE;
     decor.size = DECOR_SIZE;
-    decor.focus = COLOR_FOCUS;
-    decor.unfocus = COLOR_UNFOCUS;
 }
 
 static void

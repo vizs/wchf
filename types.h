@@ -71,7 +71,6 @@ struct grid {
 
 struct decor {
     int8_t size, side;
-    uint32_t focus, unfocus;
 };
 
 struct client {
