@@ -147,7 +147,7 @@ static void group_activate_specific(uint32_t);
 
 static void update_group_list(void);
 static void change_nr_of_groups(uint32_t);
-static void refresh_borders(void);
+static void refresh_decors(void);
 static void update_ewmh_wm_state(struct client *);
 static void handle_wm_state(struct client *, xcb_atom_t, unsigned int);
 
@@ -763,9 +763,6 @@ set_focused_no_raise(struct client *client)
     /* show window if hidden */
     xcb_map_window(conn, client->window);
 
-    if (!client->maxed)
-        set_borders(client, conf.focus_color);
-
     /* focus the window */
     xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT,
             client->window, XCB_CURRENT_TIME);
@@ -778,17 +775,11 @@ set_focused_no_raise(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
                         ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, data);
 
-    /* set the focus state to inactive on the previously focused window */
-    if (client != focused_win) {
-        if (focused_win != NULL && !focused_win->maxed)
-            set_borders(focused_win, conf.unfocus_color);
-    }
-
     if (client->focus_item != NULL)
         list_move_to_head(&focus_list, client->focus_item);
 
     focused_win = client;
-
+    refresh_decors();
     window_grab_buttons(focused_win->window);
 }
 
@@ -849,6 +840,7 @@ close_window(struct client *client)
 {
     if (client == NULL)
         return;
+    undraw_decor(client);
 
     if (focused_win == client)
         focused_win = NULL;
@@ -887,8 +879,6 @@ close_window(struct client *client)
 static void
 delete_window(xcb_window_t win)
 {
-    undraw_decor(find_client(&win));
-
     xcb_client_message_event_t ev;
     ev.response_type = XCB_CLIENT_MESSAGE;
     ev.sequence = 0;
@@ -916,7 +906,7 @@ teleport_window(xcb_window_t win, int16_t x, int16_t y)
 
     xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
     update_window_status(client);
-
+    draw_decor(client);
     xcb_flush(conn);
 }
 
@@ -957,6 +947,7 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 
     xcb_configure_window(conn, win, mask, val);
     update_window_status(client);
+    draw_decor(client);
 }
 
 /*
@@ -1201,7 +1192,9 @@ reset_window(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, state);
     update_window_status(client);
-    undraw_decor(client);
+
+    if (is_special(client))
+        undraw_decor(client);
 }
 
 static bool
@@ -1772,10 +1765,13 @@ free_window(struct client *client)
 static void
 draw_decor(struct client *client)
 {
-    if (client->decor_win) /* window decoration already present! */
-        undraw_decor(client);
-    if (!decor.size)
+    if (!(decor.size || is_special(client)))
         return;
+
+    /* window decoration already present! */
+    if (client->decor_win)
+        undraw_decor(client);
+
     int dx = client->geom.x,
         dy = client->geom.y,
         dw = client->geom.width,
@@ -1827,11 +1823,12 @@ draw_decor(struct client *client)
 static void
 undraw_decor(struct client *client)
 {
-    if (client->decor_win) {
-        xcb_unmap_window(conn, client->decor_win);
-        xcb_destroy_window(conn, client->decor_win);
-        xcb_flush(conn);
-    }
+    if (!client->decor_win)
+        return;
+    xcb_unmap_window(conn, client->decor_win);
+    xcb_destroy_window(conn, client->decor_win);
+    xcb_flush(conn);
+    client->decor_win = 0;
 }
 
 
@@ -1942,9 +1939,6 @@ update_window_status(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ATOMS[WINDOWCHEF_STATUS], XCB_ATOM_STRING, 8, size, str);
     free(str);
-
-    if (!is_special(client))
-        draw_decor(client); /* it is better to have it here */
 }
 
 static void
@@ -2126,7 +2120,7 @@ change_nr_of_groups(uint32_t groups)
 }
 
 static void
-refresh_borders(void)
+refresh_decors(void)
 {
     if (!conf.apply_settings)
         return;
@@ -2143,6 +2137,7 @@ refresh_borders(void)
             set_borders(client, conf.focus_color);
         else
             set_borders(client, conf.unfocus_color);
+        draw_decor(client);
     }
 }
 
@@ -3159,7 +3154,7 @@ ipc_window_focus(uint32_t *d)
     if (client != NULL)
         set_focused(client);
 
-    refresh_borders();
+    refresh_decors();
 }
 
 static void
@@ -3229,7 +3224,7 @@ ipc_toggle_borders(uint32_t *d)
     (void)(d);
     int size;
     conf.borders = !conf.borders;
-    refresh_borders();
+    refresh_decors();
     size = conf.borders == true ? conf.border_width : 0;
     infobordersize(size);
 }
@@ -3245,21 +3240,21 @@ ipc_wm_config(uint32_t *d)
     case IPCConfigBorderWidth:
         conf.border_width = d[1];
         if (conf.apply_settings) {
-            refresh_borders();
+            refresh_decors();
             infobordersize(conf.border_width);
         }
         break;
     case IPCConfigColorFocused:
         conf.focus_color = d[1];
         if (conf.apply_settings) {
-            refresh_borders();
+            refresh_decors();
             infoborderselcol(conf.focus_color);
         }
         break;
     case IPCConfigColorUnfocused:
         conf.unfocus_color = d[1];
         if (conf.apply_settings) {
-            refresh_borders();
+            refresh_decors();
             infobordernormcol(conf.unfocus_color);
         }
         break;
