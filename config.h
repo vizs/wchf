@@ -56,4 +56,12 @@
    1, 2, 3 for left-click, middle-click, right-click */
 #define CLICK_TO_FOCUS_BUTTON 0
 
+/* size of window decorator */
+#define DECOR_SIZE 10
+
+/*
+ * side of window decorator
+ * 0 top, 1 bottom, 2 left, 3 right
+ */
+#define DECOR_SIDE 0
 #endif

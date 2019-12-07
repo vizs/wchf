@@ -46,6 +46,7 @@ static xcb_ewmh_connection_t *ewmh;
 static xcb_screen_t *scr;
 static struct client *focused_win;
 static struct conf conf;
+static struct decor decor;
 /* number of the screen we're using */
 static int scrno;
 /* base for checking randr events */
@@ -127,6 +128,8 @@ static bool get_geometry(xcb_window_t *, int16_t *, int16_t *, uint16_t *, uint1
 static void set_borders(struct client *client, uint32_t);
 static bool is_mapped(xcb_window_t);
 static void free_window(struct client *);
+static void draw_decor(struct client *);
+static void undraw_decor(struct client *);
 
 static void add_to_client_list(xcb_window_t);
 static void update_client_list(void);
@@ -737,6 +740,9 @@ setup_window(xcb_window_t win)
         client->height_inc = hints.height_inc;
     }
 
+    if (!is_special(client))
+        draw_decor(client);
+
     update_window_status(client);
     DMSG("new window was born 0x%08x\n", client->window);
 
@@ -895,6 +901,7 @@ delete_window(xcb_window_t win)
     ev.data.data32[1] = XCB_CURRENT_TIME;
 
     xcb_send_event(conn, 0, win, XCB_EVENT_MASK_NO_EVENT, (char *)&ev);
+    undraw_decor(find_client(&win));
 }
 
 /*
@@ -905,12 +912,14 @@ static void
 teleport_window(xcb_window_t win, int16_t x, int16_t y)
 {
     uint32_t values[2] = {x, y};
+    struct client *client = find_client(&win);
 
     if (win == scr->root || win == 0)
         return;
 
     xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-    update_window_status(find_client(&win));
+    update_window_status(client);
+    draw_decor(client);
 
     xcb_flush(conn);
 }
@@ -946,12 +955,13 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
     uint32_t val[2];
     uint32_t mask = XCB_CONFIG_WINDOW_WIDTH
                   | XCB_CONFIG_WINDOW_HEIGHT;
-
+    struct client *client = find_client(&win);
     val[0] = w;
     val[1] = h;
 
     xcb_configure_window(conn, win, mask, val);
-    update_window_status(find_client(&win));
+    update_window_status(client);
+    draw_decor(client);
 }
 
 /*
@@ -1196,6 +1206,7 @@ reset_window(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, state);
     update_window_status(client);
+    undraw_decor(client);
 }
 
 static bool
@@ -1761,6 +1772,73 @@ free_window(struct client *client)
     list_delete_item(&win_list, item);
     list_delete_item(&focus_list, focus_item);
 }
+
+/* draw window decoration */
+static void
+draw_decor(struct client *client)
+{
+    if (client->decor_win) /* window decoration already present! */
+        undraw_decor(client);
+    if (!decor.size)
+        return;
+    int dx = client->geom.x,
+        dy = client->geom.y,
+        dw = client->geom.width,
+        dh = client->geom.height,
+        de = 2 * (conf.borders ? conf.border_width : 0);
+    unsigned int values[1];
+
+    switch (decor.side) {
+    case 0: /* top */
+        dh  = decor.size;
+        dw += de;
+        dy -= dh;
+        break;
+    case 1: /* bottom */
+        dh  = decor.size;
+        dw += de;
+        dy += client->geom.height;
+        break;
+    case 2: /* left */
+        dw  = decor.size;
+        dh += de;
+        dx -= dw;
+        break;
+    case 3: /* right */
+        dw  = decor.size;
+        dh += de;
+        dx += client->geom.width;
+        break;
+    default:
+        return;
+    }
+    client->decor_win = xcb_generate_id(conn);
+    values[0] = client == focused_win ? decor.focus : decor.unfocus;
+    xcb_create_window(conn,
+                      0, client->decor_win, scr->root,
+                      dx, dy, dw, dh, 0,
+                      XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                      scr->root_visual,
+                      XCB_CW_BACK_PIXEL, values);
+    xcb_map_window(conn, client->decor_win);
+    xcb_flush(conn);
+
+    raise_window(client->decor_win);
+
+    DMSG("created decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
+}
+
+/* remove window decoration */
+static void
+undraw_decor(struct client *client)
+{
+    if (client->decor_win) {
+        xcb_unmap_window(conn, client->decor_win);
+        xcb_destroy_window(conn, client->decor_win);
+        xcb_flush(conn);
+    }
+}
+
 
 /*
  * Add window to the ewmh client list.
@@ -3630,6 +3708,11 @@ load_defaults(void)
     conf.pointer_actions[BUTTON_RIGHT]  = DEFAULT_RIGHT_BUTTON_ACTION;
     conf.pointer_modifier = POINTER_MODIFIER;
     conf.click_to_focus = CLICK_TO_FOCUS_BUTTON;
+
+    decor.side = DECOR_SIDE;
+    decor.size = DECOR_SIZE;
+    decor.focus = COLOR_FOCUS;
+    decor.unfocus = COLOR_UNFOCUS;
 }
 
 static void
