@@ -2014,8 +2014,10 @@ group_deactivate(uint32_t group)
 
     for (item = win_list; item != NULL; item = item->next) {
         client = item->data;
-        if (client->group == group)
+        if (client->group == group) {
             xcb_unmap_window(conn, client->window);
+            xcb_unmap_window(conn, client->decor_win);
+        }
     }
     group_in_use[group] = false;
     update_group_list();
@@ -2127,14 +2129,18 @@ refresh_decors(void)
 
     for (item = win_list; item != NULL; item = item->next) {
         client = item->data;
-        if (client->maxed)
+        if (is_special(client))
             continue;
 
         if (client == focused_win)
             set_borders(client, conf.focus_color);
         else
             set_borders(client, conf.unfocus_color);
-        draw_decor(client);
+
+        if (!is_mapped(client->window))
+            xcb_unmap_window(conn, client->decor_win);
+        else
+            draw_decor(client);
     }
 }
 
