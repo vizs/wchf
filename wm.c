@@ -840,7 +840,6 @@ close_window(struct client *client)
 {
     if (client == NULL)
         return;
-    undraw_decor(client);
 
     if (focused_win == client)
         focused_win = NULL;
@@ -1755,7 +1754,7 @@ free_window(struct client *client)
     item = client->item;
     focus_item = client->focus_item;
 
-
+    undraw_decor(client);
     free(client);
     list_delete_item(&win_list, item);
     list_delete_item(&focus_list, focus_item);
@@ -1823,12 +1822,10 @@ draw_decor(struct client *client)
 static void
 undraw_decor(struct client *client)
 {
-    if (!client->decor_win)
-        return;
     xcb_unmap_window(conn, client->decor_win);
     xcb_destroy_window(conn, client->decor_win);
     xcb_flush(conn);
-    client->decor_win = 0;
+    DMSG("destroyed decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
 }
 
 
