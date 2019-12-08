@@ -94,7 +94,7 @@ static struct client * setup_window(xcb_window_t);
 static void set_focused_no_raise(struct client *);
 static void set_focused(struct client *);
 static void set_focused_last_best();
-static void raise_window(xcb_window_t);
+static void raise_client(struct client *);
 static void close_window(struct client *);
 static void delete_window(xcb_window_t);
 static void teleport_window(xcb_window_t, int16_t, int16_t);
@@ -130,6 +130,7 @@ static bool is_mapped(xcb_window_t);
 static void free_window(struct client *);
 static void draw_decor(struct client *);
 static void undraw_decor(struct client *);
+static void change_decor_col(struct client *, uint32_t);
 
 static void add_to_client_list(xcb_window_t);
 static void update_client_list(void);
@@ -763,6 +764,11 @@ set_focused_no_raise(struct client *client)
     /* show window if hidden */
     xcb_map_window(conn, client->window);
 
+    if (!is_special(client)) {
+        set_borders(client, conf.focus_color);
+        change_decor_col(client, conf.focus_color);
+    }
+
     /* focus the window */
     xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT,
             client->window, XCB_CURRENT_TIME);
@@ -775,11 +781,18 @@ set_focused_no_raise(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
                         ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, data);
 
+    /* set the focus state to inactive on the previously focused window */
+    if (client != focused_win)
+        if (focused_win != NULL && !is_special(focused_win)) {
+            set_borders(focused_win, conf.unfocus_color);
+            change_decor_col(focused_win, conf.unfocus_color);
+        };
+
     if (client->focus_item != NULL)
         list_move_to_head(&focus_list, client->focus_item);
 
     focused_win = client;
-    refresh_decors();
+
     window_grab_buttons(focused_win->window);
 }
 
@@ -791,7 +804,7 @@ static void
 set_focused(struct client *client)
 {
     set_focused_no_raise(client);
-    raise_window(client->window);
+    raise_client(client);
 }
 
 /*
@@ -825,10 +838,12 @@ set_focused_last_best()
  */
 
 static void
-raise_window(xcb_window_t win)
+raise_client(struct client *client)
 {
     uint32_t values[1] = { XCB_STACK_MODE_ABOVE };
-    xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_STACK_MODE, values);
+    xcb_configure_window(conn, client->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
+    if (client->decor_win)
+        xcb_configure_window(conn, client->decor_win, XCB_CONFIG_WINDOW_STACK_MODE, values);
 }
 
 /*
@@ -1767,7 +1782,7 @@ draw_decor(struct client *client)
     if (!(decor.size || is_special(client)))
         return;
 
-    /* window decoration already present! */
+    /* TODO: redraw decoration instead */
     if (client->decor_win)
         undraw_decor(client);
 
@@ -1802,8 +1817,8 @@ draw_decor(struct client *client)
     default:
         return;
     }
-    client->decor_win = xcb_generate_id(conn);
     values[0] = client == focused_win ? conf.focus_color : conf.unfocus_color;
+    client->decor_win = xcb_generate_id(conn);
     xcb_create_window(conn,
                       0, client->decor_win, scr->root,
                       dx, dy, dw, dh, 0,
@@ -1812,8 +1827,6 @@ draw_decor(struct client *client)
                       XCB_CW_BACK_PIXEL, values);
     xcb_map_window(conn, client->decor_win);
     xcb_flush(conn);
-
-    raise_window(client->decor_win);
 
     DMSG("created decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
 }
@@ -1828,6 +1841,15 @@ undraw_decor(struct client *client)
     DMSG("destroyed decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
 }
 
+/* change background color of decoration */
+static void
+change_decor_col(struct client *client, uint32_t color)
+{
+    if (!client->decor_win)
+        return;
+    unsigned int values[1] = { color };
+    xcb_configure_window(conn, client->decor_win, XCB_CW_BACK_PIXEL, values);
+}
 
 /*
  * Add window to the ewmh client list.
@@ -3442,7 +3464,7 @@ pointer_grab(enum pointer_action pac)
     if (client == NULL)
         return true;
 
-    raise_window(client->window);
+    raise_client(client);
     if (pac == POINTER_ACTION_FOCUS) {
         DMSG("grabbing pointer to focus on 0x%08x\n", client->window);
         if (client != focused_win) {
