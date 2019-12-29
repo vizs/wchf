@@ -139,6 +139,7 @@ static void update_current_desktop(struct client *);
 static void update_window_status(struct client *);
 
 static void group_add_window(struct client *, uint32_t);
+static void group_move_window(struct client *, uint32_t);
 static void group_remove_window(struct client *);
 static void group_remove_all_windows(uint32_t);
 static void group_activate(uint32_t);
@@ -195,6 +196,7 @@ static void ipc_window_cardinal_focus(uint32_t *);
 static void ipc_window_focus(uint32_t *);
 static void ipc_window_focus_last(uint32_t *);
 static void ipc_group_add_window(uint32_t *);
+static void ipc_group_move_window(uint32_t *);
 static void ipc_group_remove_window(uint32_t *);
 static void ipc_group_remove_all_windows(uint32_t *);
 static void ipc_group_activate(uint32_t *);
@@ -764,10 +766,10 @@ set_focused_no_raise(struct client *client)
     /* show window if hidden */
     xcb_map_window(conn, client->window);
 
-    if (!is_special(client)) {
+    /*if (!is_special(client)) {
         set_borders(client, conf.focus_color);
         change_decor_col(client, conf.focus_color);
-    }
+    }*/
 
     /* focus the window */
     xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT,
@@ -782,16 +784,17 @@ set_focused_no_raise(struct client *client)
                         ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, data);
 
     /* set the focus state to inactive on the previously focused window */
-    if (client != focused_win)
+    /*if (client != focused_win)
         if (focused_win != NULL && !is_special(focused_win)) {
             set_borders(focused_win, conf.unfocus_color);
             change_decor_col(focused_win, conf.unfocus_color);
-        };
+        };*/
 
     if (client->focus_item != NULL)
         list_move_to_head(&focus_list, client->focus_item);
 
     focused_win = client;
+    refresh_decors();
 
     window_grab_buttons(focused_win->window);
 }
@@ -1974,6 +1977,20 @@ group_add_window(struct client *client, uint32_t group)
 }
 
 static void
+group_move_window(struct client *client, uint32_t group)
+{
+    if (client != NULL && group < conf.groups) {
+        client->group = group;
+        group_in_use[group] = true;
+        xcb_unmap_window(conn, client->window);
+        update_wm_desktop(client);
+        update_group_list();
+        update_current_desktop(client);
+        update_window_status(client);
+    }
+}
+
+static void
 group_remove_window(struct client *client)
 {
     if (client != NULL) {
@@ -2832,6 +2849,7 @@ register_ipc_handlers(void)
     ipc_handlers[IPCWindowFocus]           = ipc_window_focus;
     ipc_handlers[IPCWindowFocusLast]       = ipc_window_focus_last;
     ipc_handlers[IPCGroupAddWindow]        = ipc_group_add_window;
+    ipc_handlers[IPCGroupMoveWindow]       = ipc_group_move_window;
     ipc_handlers[IPCGroupRemoveWindow]     = ipc_group_remove_window;
     ipc_handlers[IPCGroupRemoveAllWindows] = ipc_group_remove_all_windows;
     ipc_handlers[IPCGroupActivate]         = ipc_group_activate;
@@ -3195,6 +3213,13 @@ ipc_group_add_window(uint32_t *d)
 {
     if (focused_win != NULL)
         group_add_window(focused_win, d[0] - 1);
+}
+
+static void
+ipc_group_move_window(uint32_t *d)
+{
+    if (focused_win != NULL)
+        group_move_window(focused_win, d[0] - 1);
 }
 
 static void

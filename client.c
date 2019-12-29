@@ -75,6 +75,7 @@ static struct Command c[] = {
     { "window_focus"              , IPCWindowFocus           ,  1 , fn_hex       },
     { "window_focus_last"         , IPCWindowFocusLast       ,  0 , NULL         },
     { "group_add_window"          , IPCGroupAddWindow        ,  1 , fn_naturals  },
+    { "group_move_window"         , IPCGroupMoveWindow       ,  1 , fn_naturals  },
     { "group_remove_window"       , IPCGroupRemoveWindow     ,  0 , NULL         },
     { "group_remove_all_windows"  , IPCGroupRemoveAllWindows ,  1 , fn_naturals  },
     { "group_activate"            , IPCGroupActivate         ,  1 , fn_naturals  },
@@ -471,7 +472,7 @@ int main(int argc, char **argv)
             send_command(&c[i], command_argc, command_argv);
 
     } else {
-        errx(EXIT_FAILURE, "no such command %s", argv[0]);
+        errx(EXIT_FAILURE, "no such command %s", argv[1]);
     }
 
     if (conn != NULL)
