@@ -121,7 +121,7 @@ static bool is_in_valid_direction(uint32_t, float, float);
 static bool is_in_cardinal_direction(uint32_t , struct client *, struct client *);
 static xcb_atom_t get_atom(char *);
 static void update_desktop_viewport(void);
-static bool get_pointer_location(xcb_window_t *, int16_t *, int16_t *);
+/*static bool get_pointer_location(xcb_window_t *, int16_t *, int16_t *);*/
 static void center_pointer(struct client *);
 static struct client * find_client(xcb_window_t *);
 static bool get_geometry(xcb_window_t *, int16_t *, int16_t *, uint16_t *, uint16_t *, uint8_t *);
@@ -130,7 +130,7 @@ static bool is_mapped(xcb_window_t);
 static void free_window(struct client *);
 static void draw_decor(struct client *);
 static void undraw_decor(struct client *);
-static void change_decor_col(struct client *, uint32_t);
+/* static void change_decor_col(struct client *, uint32_t); */
 
 static void add_to_client_list(xcb_window_t);
 static void update_client_list(void);
@@ -1623,21 +1623,21 @@ update_desktop_viewport(void)
  * Get the mouse pointer's coordinates.
  */
 
-static bool
-get_pointer_location(xcb_window_t *win, int16_t *x, int16_t *y)
-{
-    xcb_query_pointer_reply_t *pointer;
+/* static bool */
+/* get_pointer_location(xcb_window_t *win, int16_t *x, int16_t *y) */
+/* { */
+    /* xcb_query_pointer_reply_t *pointer; */
 
-    pointer = xcb_query_pointer_reply(conn,
-            xcb_query_pointer(conn, *win), 0);
+    /* pointer = xcb_query_pointer_reply(conn, */
+    /*         xcb_query_pointer(conn, *win), 0); */
 
-    *x = pointer->win_x;
-    *y = pointer->win_y;
+    /* *x = pointer->win_x; */
+    /* *y = pointer->win_y; */
 
-    free(pointer);
+    /* free(pointer); */
 
-    return pointer != NULL;
-}
+    /* return pointer != NULL; */
+/* } */
 
 static void
 center_pointer(struct client *client)
@@ -1845,14 +1845,14 @@ undraw_decor(struct client *client)
 }
 
 /* change background color of decoration */
-static void
-change_decor_col(struct client *client, uint32_t color)
-{
-    if (!client->decor_win)
-        return;
-    unsigned int values[1] = { color };
-    xcb_configure_window(conn, client->decor_win, XCB_CW_BACK_PIXEL, values);
-}
+/* static void */
+/* change_decor_col(struct client *client, uint32_t color) */
+/* { */
+    /* if (!client->decor_win) */
+    /*     return; */
+    /* unsigned int values[1] = { color }; */
+    /* xcb_configure_window(conn, client->decor_win, XCB_CW_BACK_PIXEL, values); */
+/* } */
 
 /*
  * Add window to the ewmh client list.
@@ -2608,14 +2608,15 @@ event_map_request(xcb_generic_event_t *ev)
         if (client == NULL)
             return;
 
-        if (!client->geom.set_by_user) {
-            if (!get_pointer_location(&scr->root, &client->geom.x, &client->geom.y))
-                client->geom.x = client->geom.y = 0;
+        /* i dont really like this tbh */
+        /* if (!client->geom.set_by_user) { */
+            /* if (!get_pointer_location(&scr->root, &client->geom.x, &client->geom.y)) */
+                /* client->geom.x = client->geom.y = 0; */
 
-            client->geom.x -= client->geom.width / 2;
-            client->geom.y -= client->geom.height / 2;
-            teleport_window(client->window, client->geom.x, client->geom.y);
-        }
+            /* client->geom.x -= client->geom.width / 2; */
+            /* client->geom.y -= client->geom.height / 2; */
+            /* teleport_window(client->window, client->geom.x, client->geom.y); */
+        /* } */
         if (conf.sticky_windows)
             group_add_window(client, last_group);
     }
@@ -2638,7 +2639,8 @@ event_map_request(xcb_generic_event_t *ev)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, data);
 
-    center_pointer(client);
+    /* again, not really a fan of this */
+    /* center_pointer(client); */
     update_client_list();
 
     if (!client->maxed)
@@ -2661,7 +2663,6 @@ event_map_notify(xcb_generic_event_t *ev)
 
 /*
  * Window has been unmapped (became invisible).
- */
 
 static void
 event_unmap_notify(xcb_generic_event_t *ev)
@@ -3504,7 +3505,9 @@ pointer_grab(enum pointer_action pac)
         return true;
 
     xcb_grab_pointer_reply_t *reply =
-        xcb_grab_pointer_reply(conn, xcb_grab_pointer(conn, 0, scr->root, XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME), NULL);
+        xcb_grab_pointer_reply(conn, xcb_grab_pointer(conn, 0, scr->root,
+                XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC,
+                XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME), NULL);
 
     if (reply == NULL || reply->status != XCB_GRAB_STATUS_SUCCESS) {
         free(reply);
@@ -3568,6 +3571,7 @@ get_handle(struct client *client, xcb_point_t pos, enum pointer_action pac)
 
     return handle;
 }
+
 static void
 track_pointer(struct client *client, enum pointer_action pac, xcb_point_t pos)
 {
@@ -3673,7 +3677,6 @@ track_pointer(struct client *client, enum pointer_action pac, xcb_point_t pos)
                 xcb_flush(conn);
             }
         } else if (resp == XCB_BUTTON_RELEASE) {
-
             grabbing = false;
         } else {
             if (events[resp] != NULL)
