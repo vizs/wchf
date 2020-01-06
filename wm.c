@@ -195,6 +195,8 @@ static void ipc_window_rev_cycle_in_group(uint32_t *);
 static void ipc_window_cardinal_focus(uint32_t *);
 static void ipc_window_focus(uint32_t *);
 static void ipc_window_focus_last(uint32_t *);
+static void ipc_window_unmap(uint32_t *);
+static void ipc_window_map(uint32_t *);
 static void ipc_group_add_window(uint32_t *);
 static void ipc_group_move_window(uint32_t *);
 static void ipc_group_remove_window(uint32_t *);
@@ -721,7 +723,7 @@ setup_window(xcb_window_t win)
     client->maxed  = client->hmaxed = client->vmaxed
         = client->monocled = client->gridded = client->geom.set_by_user = false;
     client->monitor = NULL;
-    client->mapped  = false;
+    client->mapped  = client->umapped_user = false;
     client->group   = NULL_GROUP;
     get_geometry(&client->window, &client->geom.x, &client->geom.y,
             &client->geom.width, &client->geom.height, &client->depth);
@@ -2032,7 +2034,8 @@ group_activate(uint32_t group)
 
     for (item = win_list; item != NULL; item = item->next) {
         client = item->data;
-        if (client->group == group) {
+        if (client->group == group
+        && !client->umapped_user) {
             xcb_map_window(conn, client->window);
             set_focused(client);
         }
@@ -2663,6 +2666,7 @@ event_map_notify(xcb_generic_event_t *ev)
 
 /*
  * Window has been unmapped (became invisible).
+ */
 
 static void
 event_unmap_notify(xcb_generic_event_t *ev)
@@ -2849,6 +2853,8 @@ register_ipc_handlers(void)
     ipc_handlers[IPCWindowCardinalFocus]   = ipc_window_cardinal_focus;
     ipc_handlers[IPCWindowFocus]           = ipc_window_focus;
     ipc_handlers[IPCWindowFocusLast]       = ipc_window_focus_last;
+    ipc_handlers[IPCWindowUnmap]           = ipc_window_unmap;
+    ipc_handlers[IPCWindowMap]             = ipc_window_map;
     ipc_handlers[IPCGroupAddWindow]        = ipc_group_add_window;
     ipc_handlers[IPCGroupMoveWindow]       = ipc_group_move_window;
     ipc_handlers[IPCGroupRemoveWindow]     = ipc_group_remove_window;
@@ -3207,6 +3213,26 @@ ipc_window_focus_last(uint32_t *d)
     (void)(d);
     if (focused_win != NULL)
         set_focused_last_best();
+}
+
+static void
+ipc_window_unmap(uint32_t *d)
+{
+    struct client *client = find_client(&d[0]);
+    if (client == NULL)
+        return;
+    client->umapped_user = true;
+    xcb_unmap_window(conn, client->window);
+}
+
+static void
+ipc_window_map(uint32_t *d)
+{
+    struct client *client = find_client(&d[0]);
+    if (client == NULL)
+        return;
+    client->umapped_user = false;
+    xcb_map_window(conn, client->window);
 }
 
 static void
@@ -3631,7 +3657,6 @@ track_pointer(struct client *client, enum pointer_action pac, xcb_point_t pos)
                 case HANDLE_RIGHT:
                     width = geom.width + dx;
                     break;
-
                 case HANDLE_TOP_LEFT:
                     y = geom.y + dy;
                     height = geom.height - dy;
