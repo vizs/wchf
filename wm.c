@@ -46,7 +46,6 @@ static xcb_ewmh_connection_t *ewmh;
 static xcb_screen_t *scr;
 static struct client *focused_win;
 static struct conf conf;
-static struct decor decor;
 /* number of the screen we're using */
 static int scrno;
 /* base for checking randr events */
@@ -94,7 +93,7 @@ static struct client * setup_window(xcb_window_t);
 static void set_focused_no_raise(struct client *);
 static void set_focused(struct client *);
 static void set_focused_last_best();
-static void raise_client(struct client *);
+static void raise_window(xcb_window_t);
 static void close_window(struct client *);
 static void delete_window(xcb_window_t);
 static void teleport_window(xcb_window_t, int16_t, int16_t);
@@ -128,9 +127,6 @@ static bool get_geometry(xcb_window_t *, int16_t *, int16_t *, uint16_t *, uint1
 static void set_borders(struct client *client, uint32_t);
 static bool is_mapped(xcb_window_t);
 static void free_window(struct client *);
-static void draw_decor(struct client *);
-static void undraw_decor(struct client *);
-/* static void change_decor_col(struct client *, uint32_t); */
 
 static void add_to_client_list(xcb_window_t);
 static void update_client_list(void);
@@ -149,7 +145,7 @@ static void group_activate_specific(uint32_t);
 
 static void update_group_list(void);
 static void change_nr_of_groups(uint32_t);
-static void refresh_decors(void);
+static void refresh_borders(void);
 static void update_ewmh_wm_state(struct client *);
 static void handle_wm_state(struct client *, xcb_atom_t, unsigned int);
 
@@ -768,10 +764,8 @@ set_focused_no_raise(struct client *client)
     /* show window if hidden */
     xcb_map_window(conn, client->window);
 
-    /*if (!is_special(client)) {
+    if (!client->maxed)
         set_borders(client, conf.focus_color);
-        change_decor_col(client, conf.focus_color);
-    }*/
 
     /* focus the window */
     xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT,
@@ -786,17 +780,14 @@ set_focused_no_raise(struct client *client)
                         ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, data);
 
     /* set the focus state to inactive on the previously focused window */
-    /*if (client != focused_win)
-        if (focused_win != NULL && !is_special(focused_win)) {
+    if (client != focused_win)
+        if (focused_win != NULL && !is_special(focused_win))
             set_borders(focused_win, conf.unfocus_color);
-            change_decor_col(focused_win, conf.unfocus_color);
-        };*/
 
     if (client->focus_item != NULL)
         list_move_to_head(&focus_list, client->focus_item);
 
     focused_win = client;
-    refresh_decors();
 
     window_grab_buttons(focused_win->window);
 }
@@ -809,7 +800,7 @@ static void
 set_focused(struct client *client)
 {
     set_focused_no_raise(client);
-    raise_client(client);
+    raise_window(client->window);
 }
 
 /*
@@ -843,12 +834,10 @@ set_focused_last_best()
  */
 
 static void
-raise_client(struct client *client)
+raise_window(xcb_window_t win)
 {
     uint32_t values[1] = { XCB_STACK_MODE_ABOVE };
-    xcb_configure_window(conn, client->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
-    if (client->decor_win)
-        xcb_configure_window(conn, client->decor_win, XCB_CONFIG_WINDOW_STACK_MODE, values);
+    xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_STACK_MODE, values);
 }
 
 /*
@@ -925,7 +914,6 @@ teleport_window(xcb_window_t win, int16_t x, int16_t y)
 
     xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
     update_window_status(client);
-    draw_decor(client);
     xcb_flush(conn);
 }
 
@@ -966,7 +954,6 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 
     xcb_configure_window(conn, win, mask, val);
     update_window_status(client);
-    draw_decor(client);
 }
 
 /*
@@ -1211,9 +1198,6 @@ reset_window(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, state);
     update_window_status(client);
-
-    if (is_special(client))
-        undraw_decor(client);
 }
 
 static bool
@@ -1774,87 +1758,10 @@ free_window(struct client *client)
     item = client->item;
     focus_item = client->focus_item;
 
-    undraw_decor(client);
     free(client);
     list_delete_item(&win_list, item);
     list_delete_item(&focus_list, focus_item);
 }
-
-/* draw window decoration */
-static void
-draw_decor(struct client *client)
-{
-    if (!(decor.size || is_special(client)))
-        return;
-
-    /* TODO: redraw decoration instead */
-    if (client->decor_win)
-        undraw_decor(client);
-
-    int dx = client->geom.x,
-        dy = client->geom.y,
-        dw = client->geom.width,
-        dh = client->geom.height,
-        de = 2 * (conf.borders ? conf.border_width : 0);
-    unsigned int values[1];
-
-    switch (decor.side) {
-    case 0: /* top */
-        dh  = decor.size;
-        dw += de;
-        dy -= dh;
-        break;
-    case 1: /* bottom */
-        dh  = decor.size;
-        dw += de;
-        dy += client->geom.height - de;
-        break;
-    case 2: /* left */
-        dw  = decor.size;
-        dh += de;
-        dx -= dw;
-        break;
-    case 3: /* right */
-        dw  = decor.size;
-        dh += de;
-        dx += client->geom.width;
-        break;
-    default:
-        return;
-    }
-    values[0] = client == focused_win ? conf.focus_color : conf.unfocus_color;
-    client->decor_win = xcb_generate_id(conn);
-    xcb_create_window(conn,
-                      0, client->decor_win, scr->root,
-                      dx, dy, dw, dh, 0,
-                      XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                      scr->root_visual,
-                      XCB_CW_BACK_PIXEL, values);
-    xcb_map_window(conn, client->decor_win);
-    xcb_flush(conn);
-
-    DMSG("created decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
-}
-
-/* remove window decoration */
-static void
-undraw_decor(struct client *client)
-{
-    xcb_unmap_window(conn, client->decor_win);
-    xcb_destroy_window(conn, client->decor_win);
-    xcb_flush(conn);
-    DMSG("destroyed decoration window 0x%08x for 0x%08x\n", client->decor_win, client->window);
-}
-
-/* change background color of decoration */
-/* static void */
-/* change_decor_col(struct client *client, uint32_t color) */
-/* { */
-    /* if (!client->decor_win) */
-    /*     return; */
-    /* unsigned int values[1] = { color }; */
-    /* xcb_configure_window(conn, client->decor_win, XCB_CW_BACK_PIXEL, values); */
-/* } */
 
 /*
  * Add window to the ewmh client list.
@@ -2056,10 +1963,8 @@ group_deactivate(uint32_t group)
 
     for (item = win_list; item != NULL; item = item->next) {
         client = item->data;
-        if (client->group == group) {
+        if (client->group == group)
             xcb_unmap_window(conn, client->window);
-            xcb_unmap_window(conn, client->decor_win);
-        }
     }
     group_in_use[group] = false;
     update_group_list();
@@ -2161,7 +2066,7 @@ change_nr_of_groups(uint32_t groups)
 }
 
 static void
-refresh_decors(void)
+refresh_borders(void)
 {
     if (!conf.apply_settings)
         return;
@@ -2178,11 +2083,6 @@ refresh_decors(void)
             set_borders(client, conf.focus_color);
         else
             set_borders(client, conf.unfocus_color);
-
-        if (!is_mapped(client->window))
-            xcb_unmap_window(conn, client->decor_win);
-        else
-            draw_decor(client);
     }
 }
 
@@ -3204,7 +3104,7 @@ ipc_window_focus(uint32_t *d)
     if (client != NULL)
         set_focused(client);
 
-    refresh_decors();
+    refresh_borders();
 }
 
 static void
@@ -3301,7 +3201,7 @@ ipc_toggle_borders(uint32_t *d)
     (void)(d);
     int size;
     conf.borders = !conf.borders;
-    refresh_decors();
+    refresh_borders();
     size = conf.borders == true ? conf.border_width : 0;
     infobordersize(size);
 }
@@ -3317,21 +3217,21 @@ ipc_wm_config(uint32_t *d)
     case IPCConfigBorderWidth:
         conf.border_width = d[1];
         if (conf.apply_settings) {
-            refresh_decors();
+            refresh_borders();
             infobordersize(conf.border_width);
         }
         break;
     case IPCConfigColorFocused:
         conf.focus_color = d[1];
         if (conf.apply_settings) {
-            refresh_decors();
+            refresh_borders();
             infoborderselcol(conf.focus_color);
         }
         break;
     case IPCConfigColorUnfocused:
         conf.unfocus_color = d[1];
         if (conf.apply_settings) {
-            refresh_decors();
+            refresh_borders();
             infobordernormcol(conf.unfocus_color);
         }
         break;
@@ -3516,7 +3416,7 @@ pointer_grab(enum pointer_action pac)
     if (client == NULL)
         return true;
 
-    raise_client(client);
+    raise_window(win);
     if (pac == POINTER_ACTION_FOCUS) {
         DMSG("grabbing pointer to focus on 0x%08x\n", client->window);
         if (client != focused_win) {
@@ -3779,9 +3679,6 @@ load_defaults(void)
     conf.pointer_actions[BUTTON_RIGHT]  = DEFAULT_RIGHT_BUTTON_ACTION;
     conf.pointer_modifier = POINTER_MODIFIER;
     conf.click_to_focus = CLICK_TO_FOCUS_BUTTON;
-
-    decor.side = DECOR_SIDE;
-    decor.size = DECOR_SIZE;
 }
 
 static void

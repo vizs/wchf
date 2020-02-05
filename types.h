@@ -69,10 +69,6 @@ struct grid {
     int16_t sx, sy;
 };
 
-struct decor {
-    int8_t size, side;
-};
-
 struct client {
     xcb_window_t window;
     struct window_geom geom;
@@ -82,7 +78,6 @@ struct client {
     struct list_item *item;
     struct list_item *focus_item;
     struct monitor *monitor;
-    xcb_window_t decor_win;
     uint16_t min_width, min_height;
     uint16_t max_width, max_height;
     uint16_t width_inc, height_inc;
