@@ -46,6 +46,7 @@ static xcb_ewmh_connection_t *ewmh;
 static xcb_screen_t *scr;
 static struct client *focused_win;
 static struct conf conf;
+static struct decor decor;
 /* number of the screen we're using */
 static int scrno;
 /* base for checking randr events */
@@ -149,6 +150,8 @@ static void refresh_borders(void);
 static void update_ewmh_wm_state(struct client *);
 static void handle_wm_state(struct client *, xcb_atom_t, unsigned int);
 
+static void map_client(struct client *);
+static void unmap_client(struct client *);
 static void snap_window(struct client *, enum position);
 static void grid_window(struct client *, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t);
 static void move_grid_window(struct client *, uint16_t, uint16_t);
@@ -214,6 +217,8 @@ static enum resize_handle get_handle(struct client *, xcb_point_t, enum pointer_
 static void track_pointer(struct client *, enum pointer_action, xcb_point_t);
 static void grab_buttons(void);
 static void ungrab_buttons(void);
+
+static void setup_decor(struct client *);
 
 static void usage(char *);
 static void version(void);
@@ -743,8 +748,63 @@ setup_window(xcb_window_t win)
 
     update_window_status(client);
     DMSG("new window was born 0x%08x\n", client->window);
+    setup_decor(client);
 
     return client;
+}
+
+/*
+ * Setup the decorator window for the client
+ */
+
+static void
+setup_decor(struct client *client)
+{
+    if (is_special(client))
+        return;
+
+    int dx, dy, dw, dh, de;
+    unsigned int values[1];
+    dx = client->geom.x;
+    dy = client->geom.y;
+    dw = dh = decor.size;
+    de = conf.borders? 2 * conf.border_width : 0;
+
+    switch (decor.side) {
+    case 0: /* top */
+        dy -= decor.size;
+        break;
+    case 1: /* bottom */
+        dy += client->geom.height;
+        break;
+    case 2: /* left */
+        dx -= decor.size;
+        break;
+    case 3: /* right */
+        dx += client->geom.width;
+        break;
+    }
+    switch (decor.side) {
+    case 0: case 1:
+        dh = decor.size;
+        dw = client->geom.width + de;
+        break;
+    case 2: case 3:
+        dw = decor.size;
+        dh = client->geom.height + de;
+        break;
+    }
+    values[0] = client == focused_win?
+        decor.focus_color : decor.unfocus_color;
+    client->decor = xcb_generate_id(conn);
+    xcb_create_window(conn,
+            0, client->decor, scr->root,
+            dx, dy, dw, dh, 0,
+            XCB_WINDOW_CLASS_INPUT_OUTPUT,
+            scr->root_visual, XCB_CW_BACK_PIXEL, values);
+    xcb_map_window(conn, client->decor);
+    xcb_flush(conn);
+    DMSG("created decoration window 0x%08x for 0x%08x\n", client->decor, client->window);
 }
 
 /*
@@ -762,7 +822,7 @@ set_focused_no_raise(struct client *client)
         return;
 
     /* show window if hidden */
-    xcb_map_window(conn, client->window);
+    map_client(client);
 
     if (!client->maxed)
         set_borders(client, conf.focus_color);
@@ -1891,7 +1951,7 @@ group_move_window(struct client *client, uint32_t group)
     if (client != NULL && group < conf.groups) {
         client->group = group;
         group_in_use[group] = true;
-        xcb_unmap_window(conn, client->window);
+        unmap_client(client);
         update_wm_desktop(client);
         update_group_list();
         update_current_desktop(client);
@@ -1943,7 +2003,7 @@ group_activate(uint32_t group)
         client = item->data;
         if (client->group == group
         && !client->umapped_user) {
-            xcb_map_window(conn, client->window);
+            map_client(client);
             set_focused(client);
         }
     }
@@ -1964,7 +2024,7 @@ group_deactivate(uint32_t group)
     for (item = win_list; item != NULL; item = item->next) {
         client = item->data;
         if (client->group == group)
-            xcb_unmap_window(conn, client->window);
+            unmap_client(client);
     }
     group_in_use[group] = false;
     update_group_list();
@@ -2164,6 +2224,34 @@ handle_wm_state(struct client *client, xcb_atom_t state, unsigned int action)
                 hmaximize_window(client, mon_x, mon_w);
         }
     }
+}
+
+/*
+ * Map a window and its decoration if the window is
+ * not special.
+ */
+
+static void
+map_client(struct client *client)
+{
+    xcb_map_window(conn, client->window);
+    if (!is_special(client) && client->decor)
+        xcb_map_window(conn, client->decor);
+    xcb_flush(conn);
+}
+
+/*
+ * Unmap a window and its decoration if the window is
+ * not special.
+ */
+
+static void
+unmap_client(struct client *client)
+{
+    xcb_unmap_window(conn, client->window);
+    if (!is_special(client) && client->decor)
+        xcb_unmap_window(conn, client->decor);
+    xcb_flush(conn);
 }
 
 /*
@@ -3122,7 +3210,7 @@ ipc_window_unmap(uint32_t *d)
     if (client == NULL)
         return;
     client->umapped_user = true;
-    xcb_unmap_window(conn, client->window);
+    unmap_client(client);
 }
 
 static void
@@ -3132,7 +3220,7 @@ ipc_window_map(uint32_t *d)
     if (client == NULL)
         return;
     client->umapped_user = false;
-    xcb_map_window(conn, client->window);
+    map_client(client);
 }
 
 static void
@@ -3679,6 +3767,11 @@ load_defaults(void)
     conf.pointer_actions[BUTTON_RIGHT]  = DEFAULT_RIGHT_BUTTON_ACTION;
     conf.pointer_modifier = POINTER_MODIFIER;
     conf.click_to_focus = CLICK_TO_FOCUS_BUTTON;
+
+    decor.focus_color = conf.focus_color;
+    decor.unfocus_color = conf.unfocus_color;
+    decor.side = 0;
+    decor.size = 10;
 }
 
 static void

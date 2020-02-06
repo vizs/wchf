@@ -69,8 +69,14 @@ struct grid {
     int16_t sx, sy;
 };
 
+struct decor {
+    uint32_t focus_color, unfocus_color;
+    uint16_t side, size;
+};
+
 struct client {
     xcb_window_t window;
+    xcb_window_t decor;
     struct window_geom geom;
     struct window_geom orig_geom;
     bool maxed, hmaxed, vmaxed, monocled, gridded;
