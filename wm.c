@@ -219,6 +219,8 @@ static void grab_buttons(void);
 static void ungrab_buttons(void);
 
 static void setup_decor(struct client *);
+static void resize_decor(struct client *);
+static void move_decor(struct client *);
 
 static void usage(char *);
 static void version(void);
@@ -973,6 +975,8 @@ teleport_window(xcb_window_t win, int16_t x, int16_t y)
         return;
 
     xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+    if (!is_special(client))
+        move_decor(client);
     update_window_status(client);
     xcb_flush(conn);
 }
@@ -1013,6 +1017,8 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
     val[1] = h;
 
     xcb_configure_window(conn, win, mask, val);
+    if (!is_special(client))
+        resize_decor(client);
     update_window_status(client);
 }
 
@@ -1258,6 +1264,63 @@ reset_window(struct client *client)
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
             ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, state);
     update_window_status(client);
+}
+
+/*
+ * Resize the client's decoration window
+ */
+
+static void
+resize_decor(struct client *client)
+{
+    unsigned int values[2];
+    int dw, dh, de;
+    de = conf.borders? 2 * conf.border_width : 0;
+
+    switch (decor.side) {
+    case 0: case 1:
+        dh = decor.size;
+        dw = client->geom.width + de;
+        break;
+    case 2: case 3:
+        dh = client->geom.height + de;
+        dw = decor.size;
+        break;
+    }
+    values[0] = dw; values[1] = dh;
+    xcb_configure_window(conn, client->decor,
+        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+}
+
+/*
+ * Move the client's decoration window
+ */
+
+static void
+move_decor(struct client *client)
+{
+    unsigned int values[2];
+    int dx, dy;
+    dx = client->geom.x;
+    dy = client->geom.y;
+
+    switch (decor.side) {
+    case 0:
+        dy -= decor.size;
+        break;
+    case 1:
+        dy += client->geom.height;
+        break;
+    case 2:
+        dx -= decor.size;
+        break;
+    case 3:
+        dx += client->geom.width;
+        break;
+    }
+    values[0] = dx; values[1] = dy;
+    xcb_configure_window(conn, client->decor,
+        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 }
 
 static bool
