@@ -864,6 +864,8 @@ set_focused(struct client *client)
 {
     set_focused_no_raise(client);
     raise_window(client->window);
+    if (client->decor)
+        raise_window(client->decor);
 }
 
 /*
@@ -1160,6 +1162,8 @@ maximize_window(struct client *client, int16_t mon_x, int16_t mon_y, uint16_t mo
         client->orig_geom = client->geom;
     xcb_configure_window(conn, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
             values);
+    if (client->decor)
+        xcb_unmap_window(conn, client->decor);
 
     client->geom.x = mon_x;
     client->geom.y = mon_y;
@@ -3076,6 +3080,8 @@ ipc_window_unmaximize(uint32_t *d)
     if (is_special(focused_win)) {
         reset_window(focused_win);
         set_focused(focused_win);
+        if (focused_win->decor)
+            xcb_map_window(conn, focused_win->decor);
     }
 
     xcb_flush(conn);
