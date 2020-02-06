@@ -221,6 +221,7 @@ static void ungrab_buttons(void);
 static void setup_decor(struct client *);
 static void resize_decor(struct client *);
 static void move_decor(struct client *);
+static void kill_decor(struct client *);
 
 static void usage(char *);
 static void version(void);
@@ -940,6 +941,7 @@ close_window(struct client *client)
         delete_window(win);
     else
         xcb_kill_client(conn, win);
+    kill_decor(client);
 }
 
 /*
@@ -1275,16 +1277,15 @@ resize_decor(struct client *client)
 {
     unsigned int values[2];
     int dw, dh, de;
+    dw = dh = decor.size;
     de = conf.borders? 2 * conf.border_width : 0;
 
     switch (decor.side) {
     case 0: case 1:
-        dh = decor.size;
         dw = client->geom.width + de;
         break;
     case 2: case 3:
         dh = client->geom.height + de;
-        dw = decor.size;
         break;
     }
     values[0] = dw; values[1] = dh;
@@ -1321,6 +1322,18 @@ move_decor(struct client *client)
     values[0] = dx; values[1] = dy;
     xcb_configure_window(conn, client->decor,
         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+}
+
+/*
+ * Kill the client's decoration window if present
+ */
+static void
+kill_decor(struct client *client)
+{
+    if (!client->decor)
+        return;
+    xcb_unmap_window(conn, client->decor);
+    xcb_destroy_window(conn, client->decor);
 }
 
 static bool
@@ -2603,6 +2616,8 @@ event_destroy_notify(xcb_generic_event_t *ev)
     xcb_destroy_notify_event_t *e = (xcb_destroy_notify_event_t *)ev;
 
     client = find_client(&e->window);
+    if (client != NULL)
+        kill_decor(client);
     if (conf.last_window_focusing && focused_win != NULL && focused_win == client) {
         focused_win = NULL;
         set_focused_last_best();
