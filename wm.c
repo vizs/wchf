@@ -222,6 +222,7 @@ static void setup_decor(struct client *);
 static void resize_decor(struct client *);
 static void move_decor(struct client *);
 static void kill_decor(struct client *);
+static void set_decor_color(struct client *, uint32_t);
 
 static void usage(char *);
 static void version(void);
@@ -797,8 +798,7 @@ setup_decor(struct client *client)
         dh = client->geom.height + de;
         break;
     }
-    values[0] = client == focused_win?
-        decor.focus_color : decor.unfocus_color;
+    values[0] = decor.focus_color;
     client->decor = xcb_generate_id(conn);
     xcb_create_window(conn,
             0, client->decor, scr->root,
@@ -827,7 +827,7 @@ set_focused_no_raise(struct client *client)
     /* show window if hidden */
     map_client(client);
 
-    if (!client->maxed)
+    if (!is_special(client))
         set_borders(client, conf.focus_color);
 
     /* focus the window */
@@ -1861,6 +1861,19 @@ set_borders(struct client *client, uint32_t color)
 
     values[0] = color;
     xcb_change_window_attributes(conn, client->window, XCB_CW_BORDER_PIXEL, values);
+}
+
+/*
+ * Set the color of the decoration window
+ */
+
+static void
+set_decor_color(struct client *client, uint32_t c)
+{
+    if (client == NULL || !client->decor)
+        return;
+    uint32_t values[1] = {c};
+    xcb_change_window_attributes(conn, client->decor, XCB_CW_BACK_PIXEL, values);
 }
 
 /*
@@ -3852,8 +3865,8 @@ load_defaults(void)
     conf.pointer_modifier = POINTER_MODIFIER;
     conf.click_to_focus = CLICK_TO_FOCUS_BUTTON;
 
-    decor.focus_color = conf.focus_color;
-    decor.unfocus_color = conf.unfocus_color;
+    decor.unfocus_color = conf.focus_color;
+    decor.focus_color = conf.unfocus_color;
     decor.side = 0;
     decor.size = 10;
 }
