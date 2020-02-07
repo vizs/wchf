@@ -70,7 +70,7 @@ struct grid {
 };
 
 struct decor {
-    uint32_t focus_color, unfocus_color;
+    uint32_t color;
     uint16_t side, size;
 };
 
