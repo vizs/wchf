@@ -2342,7 +2342,7 @@ static void
 map_client(struct client *client)
 {
     xcb_map_window(conn, client->window);
-    if (!is_special(client) && client->decor && decor->size)
+    if (!is_special(client) && client->decor && decor.size)
         xcb_map_window(conn, client->decor);
     xcb_flush(conn);
 }
