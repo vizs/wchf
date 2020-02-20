@@ -222,6 +222,7 @@ static void setup_decor(struct client *);
 static void resize_decor(struct client *);
 static void move_decor(struct client *);
 static void kill_decor(struct client *);
+static void refresh_decor(void);
 
 static void usage(char *);
 static void version(void);
@@ -1330,6 +1331,7 @@ move_decor(struct client *client)
 /*
  * Kill the client's decoration window if present
  */
+
 static void
 kill_decor(struct client *client)
 {
@@ -1337,6 +1339,32 @@ kill_decor(struct client *client)
         return;
     xcb_unmap_window(conn, client->decor);
     xcb_destroy_window(conn, client->decor);
+}
+
+/*
+ * Refresh all client's decoration window
+ */
+
+static void
+refresh_decor(void)
+{
+    struct list_item *item;
+    struct client *client;
+    uint32_t values[1] = {decor.color};
+
+    for (item = win_list; item != NULL; item = item->next) {
+        client = item->data;
+        if (is_special(client))
+            continue;
+        if (!client->decor) {
+            setup_decor(client);
+            continue; /* the decoration window will be proper */
+        }
+        resize_decor(client);
+        move_decor(client);
+        xcb_configure_window(conn, client->decor, XCB_CW_BACK_PIXEL, values);
+        raise_window(client->decor);
+    }
 }
 
 static bool
@@ -2314,7 +2342,7 @@ static void
 map_client(struct client *client)
 {
     xcb_map_window(conn, client->window);
-    if (!is_special(client) && client->decor)
+    if (!is_special(client) && client->decor && decor->size)
         xcb_map_window(conn, client->decor);
     xcb_flush(conn);
 }
@@ -3470,6 +3498,18 @@ ipc_wm_config(uint32_t *d)
         ungrab_buttons();
         grab_buttons();
         break;
+    case IPCConfigDecorSize:
+        decor.size = d[1];
+        refresh_decor();
+        break;
+    case IPCConfigDecorSide:
+        decor.side = d[1];
+        refresh_decor();
+        break;
+    case IPCConfigDecorColor:
+        decor.color = d[1];
+        refresh_decor();
+        break;
     default:
         DMSG("!!! unhandled config key %d\n", key);
         break;
@@ -3901,15 +3941,15 @@ main(int argc, char *argv[])
     config_path[0] = '\0';
     while ((opt = getopt(argc, argv, "hvc:")) != -1) {
         switch (opt) {
-            case 'h':
-                usage(argv[0]);
-                break;
-            case 'c':
-                snprintf(config_path, MAXLEN * sizeof(char), "%s", optarg);
-                break;
-            case 'v':
-                version();
-                break;
+        case 'h':
+            usage(argv[0]);
+            break;
+        case 'c':
+            snprintf(config_path, MAXLEN * sizeof(char), "%s", optarg);
+            break;
+        case 'v':
+            version();
+            break;
         }
     }
     atexit(cleanup);

@@ -65,6 +65,9 @@ enum IPCConfig {
     IPCConfigPointerActions,
     IPCConfigPointerModifier,
     IPCConfigClickToFocus,
+    IPCConfigDecorSide,
+    IPCConfigDecorSize,
+    IPCConfigDecorColor,
     NR_IPC_CONFIGS
 };
 

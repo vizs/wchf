@@ -107,6 +107,9 @@ static struct ConfigEntry configs[] = {
     { "pointer_actions"             , IPCConfigPointerActions           , 3 , fn_pac      },
     { "pointer_modifier"            , IPCConfigPointerModifier          , 1 , fn_mod      },
     { "click_to_focus"              , IPCConfigClickToFocus             , 1 , fn_button   },
+    { "decor_size"                  , IPCConfigDecorSize                , 1 , fn_naturals },
+    { "decor_side"                  , IPCConfigDecorSide                , 1 , fn_naturals },
+    { "decor_color"                 , IPCConfigDecorColor               , 1 , fn_hex      },
 };
 
 /*
