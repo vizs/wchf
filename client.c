@@ -76,6 +76,8 @@ static struct Command c[] = {
     { "window_focus_last"         , IPCWindowFocusLast       ,  0 , NULL         },
     { "window_unmap"              , IPCWindowUnmap           ,  1 , fn_hex       },
     { "window_map"                , IPCWindowMap             ,  1 , fn_hex       },
+    { "toggle_window_border"      , IPCToggleWindowBorder    ,  1 , fn_hex       },
+    { "toggle_window_sticky"      , IPCToggleWindowSticky    ,  1 , fn_hex       },
     { "group_add_window"          , IPCGroupAddWindow        ,  1 , fn_naturals  },
     { "group_move_window"         , IPCGroupMoveWindow       ,  1 , fn_naturals  },
     { "group_remove_window"       , IPCGroupRemoveWindow     ,  0 , NULL         },

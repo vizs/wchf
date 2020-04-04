@@ -196,6 +196,8 @@ static void ipc_window_focus(uint32_t *);
 static void ipc_window_focus_last(uint32_t *);
 static void ipc_window_unmap(uint32_t *);
 static void ipc_window_map(uint32_t *);
+static void ipc_toggle_window_border(uint32_t *);
+static void ipc_toggle_window_sticky(uint32_t *);
 static void ipc_group_add_window(uint32_t *);
 static void ipc_group_move_window(uint32_t *);
 static void ipc_group_remove_window(uint32_t *);
@@ -728,7 +730,8 @@ setup_window(xcb_window_t win)
 	client->maxed  = client->hmaxed = client->vmaxed
 	    = client->monocled = client->gridded = client->geom.set_by_user = false;
 	client->monitor = NULL;
-	client->mapped  = client->umapped_user = false;
+	client->mapped  = client->umapped_user = client->sticky = false;
+	client->bordered = true;
 	client->group   = NULL_GROUP;
 	get_geometry(&client->window, &client->geom.x, &client->geom.y,
 	        &client->geom.width, &client->geom.height, &client->depth);
@@ -1879,7 +1882,7 @@ get_geometry(xcb_window_t *win, int16_t *x, int16_t *y, uint16_t *width, uint16_
 static void
 set_borders(struct client *client, uint32_t color)
 {
-	if (client == NULL || conf.borders == false)
+	if (client == NULL || conf.borders == false || client->bordered == false )
 	    return;
 	uint32_t values[1];
 	values[0] = conf.border_width;
@@ -2108,8 +2111,9 @@ group_activate(uint32_t group)
 
 	for (item = win_list; item != NULL; item = item->next) {
 	    client = item->data;
-	    if (client->group == group
-	    && !client->umapped_user) {
+	    if ((client->group == group
+	    && !client->umapped_user)
+		|| client->sticky) {
 	        map_client(client);
 	        set_focused(client);
 	    }
@@ -2243,7 +2247,7 @@ refresh_borders(void)
 
 	for (item = win_list; item != NULL; item = item->next) {
 	    client = item->data;
-	    if (is_special(client))
+	    if (is_special(client) || !client->bordered)
 	        continue;
 
 	    if (client == focused_win)
@@ -2963,6 +2967,8 @@ register_ipc_handlers(void)
 	ipc_handlers[IPCWMQuit]                = ipc_wm_quit;
 	ipc_handlers[IPCWMConfig]              = ipc_wm_config;
 	ipc_handlers[IPCToggleBorders]         = ipc_toggle_borders;
+	ipc_handlers[IPCToggleWindowBorder]    = ipc_toggle_window_border;
+	ipc_handlers[IPCToggleWindowSticky]    = ipc_toggle_window_sticky;
 }
 
 static void
@@ -3332,6 +3338,32 @@ ipc_window_map(uint32_t *d)
 	    return;
 	client->umapped_user = false;
 	map_client(client);
+}
+
+static void
+ipc_toggle_window_border(uint32_t *d)
+{
+	uint32_t values[1];
+	struct client *client = find_client(&d[0]);
+	if (client == NULL)
+		return;
+
+	client->bordered = !client->bordered;
+	if (!client->bordered) {
+		values[0] = conf.border_width;
+		xcb_configure_window(conn, client->window,
+	        XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+	}
+}
+
+static void
+ipc_toggle_window_sticky(uint32_t *d)
+{
+	struct client *client = find_client(&d[0]);
+	if (client == NULL)
+		return;
+
+	client->sticky = !client->sticky;
 }
 
 static void

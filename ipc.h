@@ -44,6 +44,8 @@ enum IPCCommand {
     IPCWMQuit,
     IPCWMConfig,
     IPCToggleBorders,
+	IPCToggleWindowBorder,
+	IPCToggleWindowSticky,
     NR_IPC_COMMANDS
 };
 

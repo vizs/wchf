@@ -89,6 +89,8 @@ struct client {
     uint16_t width_inc, height_inc;
     bool mapped;
     bool umapped_user;
+	bool bordered;
+	bool sticky;
     uint32_t group;
     uint8_t depth;
 };
