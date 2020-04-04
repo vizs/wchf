@@ -3970,7 +3970,7 @@ main(int argc, char *argv[])
 	/* execute config file */
 	if (config_path[0] == '\0')
 	    snprintf(config_path, MAXLEN * sizeof(char),
-	             "%s/etc/xorg.d/wchf.d/wchfrc", getenv("HOME"));
+	             "%s/lib/wchf/wchfrc", getenv("HOME"));
 	load_config(config_path);
 
 	run();
