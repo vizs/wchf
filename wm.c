@@ -1882,7 +1882,7 @@ get_geometry(xcb_window_t *win, int16_t *x, int16_t *y, uint16_t *width, uint16_
 static void
 set_borders(struct client *client, uint32_t color)
 {
-	if (client == NULL || conf.borders == false || client->bordered == false )
+	if (client == NULL || conf.borders == false || client->bordered == false)
 	    return;
 	uint32_t values[1];
 	values[0] = conf.border_width;
@@ -2058,7 +2058,7 @@ group_add_window(struct client *client, uint32_t group)
 static void
 group_move_window(struct client *client, uint32_t group)
 {
-	if (client != NULL && group < conf.groups) {
+	if (client != NULL && group < conf.groups && !client->sticky) {
 	    client->group = group;
 	    group_in_use[group] = true;
 	    unmap_client(client);
@@ -2072,7 +2072,7 @@ group_move_window(struct client *client, uint32_t group)
 static void
 group_remove_window(struct client *client)
 {
-	if (client != NULL) {
+	if (client != NULL && !client->sticky) {
 	    client->group = NULL_GROUP;
 	    update_wm_desktop(client);
 	    update_group_list();
@@ -2092,7 +2092,7 @@ group_remove_all_windows(uint32_t group)
 
 	for (item = win_list; item != NULL; item = item->next) {
 	    client = item->data;
-	    if (client != NULL && client->group == group) {
+	    if (client != NULL && client->group == group && !client->sticky) {
 	        group_remove_window(client);
 	    }
 	}
@@ -2115,7 +2115,7 @@ group_activate(uint32_t group)
 	    && !client->umapped_user)
 		|| client->sticky) {
 	        map_client(client);
-	        set_focused(client);
+	        if (!client->sticky) set_focused(client);
 	    }
 	}
 	group_in_use[group] = true;
@@ -2134,7 +2134,7 @@ group_deactivate(uint32_t group)
 
 	for (item = win_list; item != NULL; item = item->next) {
 	    client = item->data;
-	    if (client->group == group)
+	    if (client->group == group && !client->sticky)
 	        unmap_client(client);
 	}
 	group_in_use[group] = false;
@@ -3349,11 +3349,9 @@ ipc_toggle_window_border(uint32_t *d)
 		return;
 
 	client->bordered = !client->bordered;
-	if (!client->bordered) {
-		values[0] = conf.border_width;
-		xcb_configure_window(conn, client->window,
-	        XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
-	}
+	values[0] = (client->bordered == false)? 0 : conf.border_width;
+	xcb_configure_window(conn, client->window,
+        XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 }
 
 static void
