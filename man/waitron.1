@@ -142,11 +142,31 @@ Focus the window that was focused before the currently focused window\.
 Focus the closest window in a direction, relative to the currently currently focused window\. Does nothing if there is no window focused\.
 .
 .TP
+\fBwindow_unmap\fR \fIid\fR
+Unmap window  by \fIid\fR\. To map again use \fIwindow_map\fR\.
+.
+.TP
+\fBwindow_map\fR \fIid\fR
+Map window unmapped by \fIid\fR\.
+.
+.TP
+\fBtoggle_window_border\fR \fIid\fR
+Toggle borders for window by \fIid\fR\. Like \fIwm_config toggle_borders\fR but for a single window\.
+.
+.TP
+\fBtoggle_window_sticky\fR \fIid\fR
+Toggle the stick tag for window by \fIid\fR\. Making the sticky window will make it appear in all groups\.
+.
+.TP
 \fBgroup_add_window\fR \fIgroup_nr\fR
 Add the focused window to the \fIgroup_nr\fR group\.
 .
 .IP
 Group numbers start from 0 and end at \fIGROUPS_NO\fR \- 1\.
+.
+.TP
+\fBgroup_move_window\fR \fIgroup_nr\fR
+Move the focused window from its current group to \fIgroup_nr\fR\.
 .
 .TP
 \fBgroup_remove_window\fR
@@ -236,14 +256,6 @@ Sets the border width to \fIwidth\fR pixels\.
 Sets the border color to \fIcolor\fR for the focused and unfocused state respectively\. \fIcolor\fR is a hexadecimal value that may or may not start with \fB0x\fR prefix\. Example: \fB0x1234ef\fR\.
 .
 .TP
-\fBinternal_border_width\fR \fIwidth\fR
-Make the first \fIwidth\fR pixels from the interior to the exterior of the border of another color, so you get two borders\. The width of the external border is \fBborder_width \- internal_border_width\fR\.
-.
-.TP
-\fBinternal_color_focused\fR, \fBinternal_color_unfocused\fR \fIcolor\fR
-Like \fBcolor_focused\fR and \fBcolor_unfocused\fR, but for the internal border\.
-.
-.TP
 \fBgap_width\fR \fIPOSITION\fR \fIwidth\fR
 Sets the window gap at \fIPOSITION\fR to \fIwidth\fR\. \fIPOSITION\fR can be equal to \fBall\fR to set all gaps to \fIPOSITION\fR\.
 .
@@ -298,6 +310,18 @@ Set the modifier for pointer actions\.
 .TP
 \fBclick_to_focus\fR \fIMOUSE_BUTTON\fR
 Set the mouse button that focuses the hovered window when clicked\.
+.
+.TP
+\fBdecor_size\fR \fIsize\fR
+Set the window decoration's size to \fIsize\fR\.
+.
+.TP
+\fBdecor_side\fR \fIside\fR
+Set the window decoration's side to \fIside\fR\. 0 means top, 1 means bottom, 2 means left, 3 means right\.
+.
+.TP
+\fBdecor_color\Fr \fIcolor\fR
+Set the window decoration's solid background color to \fIcolor\fR\.
 .
 .SH "SEE ALSO"
 

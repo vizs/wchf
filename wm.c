@@ -208,7 +208,6 @@ static void ipc_group_toggle(uint32_t *);
 static void ipc_group_activate_specific(uint32_t *);
 static void ipc_wm_quit(uint32_t *);
 static void ipc_wm_config(uint32_t *);
-static void ipc_toggle_borders(uint32_t *);
 
 static void pointer_init(void);
 static int16_t pointer_modfield_from_keysym(xcb_keysym_t);
@@ -2966,7 +2965,6 @@ register_ipc_handlers(void)
 	ipc_handlers[IPCGroupActivateSpecific] = ipc_group_activate_specific;
 	ipc_handlers[IPCWMQuit]                = ipc_wm_quit;
 	ipc_handlers[IPCWMConfig]              = ipc_wm_config;
-	ipc_handlers[IPCToggleBorders]         = ipc_toggle_borders;
 	ipc_handlers[IPCToggleWindowBorder]    = ipc_toggle_window_border;
 	ipc_handlers[IPCToggleWindowSticky]    = ipc_toggle_window_sticky;
 }
@@ -3422,17 +3420,6 @@ ipc_wm_quit(uint32_t *d)
 	uint32_t code = d[0];
 	halt = true;
 	exit_code = code;
-}
-
-static void
-ipc_toggle_borders(uint32_t *d)
-{
-	(void)(d);
-	int size;
-	conf.borders = !conf.borders;
-	refresh_borders();
-	size = conf.borders == true ? conf.border_width : 0;
-	infobordersize(size);
 }
 
 static void

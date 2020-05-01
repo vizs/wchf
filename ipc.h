@@ -43,7 +43,6 @@ enum IPCCommand {
     IPCGroupActivateSpecific,
     IPCWMQuit,
     IPCWMConfig,
-    IPCToggleBorders,
 	IPCToggleWindowBorder,
 	IPCToggleWindowSticky,
     NR_IPC_COMMANDS
