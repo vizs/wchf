@@ -1026,6 +1026,8 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 	if (!is_special(client))
 	    resize_decor(client);
 	update_window_status(client);
+
+	refresh_borders();
 }
 
 /*
