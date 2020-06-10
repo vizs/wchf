@@ -1030,10 +1030,7 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 	    resize_decor(client);
 	update_window_status(client);
 
-	if (client == focused_win)
-		set_borders(client, conf.focus_color);
-	else
-		set_borders(client, conf.unfocus_color);
+	refresh_borders();
 }
 
 /*
@@ -1922,6 +1919,7 @@ set_borders(struct client *client, uint32_t *color)
 		DMSG("setting border number %d\n", i+1);
 		cbw = conf.border_width[i];
 		values[0] = color[i];
+		DMSG("color%d is %x\n", i+1, values[0]);
 
 		/* outside in */
 		/* right, bottom, left, top */
@@ -3530,9 +3528,9 @@ ipc_wm_config(uint32_t *d)
 	case IPCConfigBorderWidth:
 		conf.total_border_width = 0;
 		conf.border_width = realloc(conf.border_width,
-							conf.number_borders * sizeof(int32_t));
+							conf.number_borders * sizeof(int8_t));
 		for (int i = 1; i <= conf.number_borders; i++) {
-			conf.border_width[i] = d[i];
+			conf.border_width[i-1] = d[i];
 			conf.total_border_width += d[i];
 		}
 		DMSG("total border width set to %d\n", conf.total_border_width);
@@ -3540,14 +3538,16 @@ ipc_wm_config(uint32_t *d)
 	case IPCConfigColorFocused:
 		conf.focus_color = realloc(conf.focus_color,
 							conf.number_borders * sizeof(uint32_t));
-		for (int i = 1; i <= conf.number_borders; i++)
-			conf.focus_color[i] = d[i];
+		for (int i = 1; i <= conf.number_borders; i++) {
+			conf.focus_color[i-1] = d[i];
+			DMSG("focus color %d is %x\n", i, conf.focus_color[i-1]);
+		}
 	    break;
 	case IPCConfigColorUnfocused:
 		conf.unfocus_color = realloc(conf.unfocus_color,
 							conf.number_borders * sizeof(uint32_t));
 		for (int i = 1; i <= conf.number_borders; i++)
-			conf.unfocus_color[i] = d[i];
+			conf.unfocus_color[i-1] = d[i];
 	    break;
 	case IPCConfigGapWidth:
 	    switch (d[1]) {

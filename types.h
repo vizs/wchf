@@ -104,11 +104,10 @@ struct monitor {
 };
 
 struct conf {
-    int8_t grid_gap;
+    int8_t grid_gap, total_border_width, *border_width, number_borders;
     int8_t gap_left, gap_down, gap_up, gap_right;
     enum position cursor_position;
     uint32_t groups;
-	int32_t total_border_width, *border_width, number_borders;
 	uint32_t *focus_color, *unfocus_color;
     bool sloppy_focus;
     bool resize_hints;
