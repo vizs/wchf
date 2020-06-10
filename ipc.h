@@ -45,16 +45,15 @@ enum IPCCommand {
     IPCWMConfig,
 	IPCToggleWindowBorder,
 	IPCToggleWindowSticky,
+	IPCRefreshBorders,
     NR_IPC_COMMANDS
 };
 
 enum IPCConfig {
+	IPCConfigNumberBorders,
     IPCConfigBorderWidth,
     IPCConfigColorFocused,
     IPCConfigColorUnfocused,
-    IPCConfigInternalBorderWidth,
-    IPCConfigInternalColorFocused,
-    IPCConfigInternalColorUnfocused,
     IPCConfigGapWidth,
     IPCConfigGridGapWidth,
     IPCConfigCursorPosition,

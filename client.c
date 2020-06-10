@@ -34,6 +34,10 @@ static bool fn_mod(uint32_t *, int, char **);
 static bool fn_button(uint32_t *, int, char **);
 static bool fn_hack(uint32_t *, int, char **);
 
+/* stuff in as much as it can in the int array */
+static bool fn_hexs(uint32_t *, int, char **);
+static bool fn_naturalss(uint32_t *, int, char **);
+
 static void usage(char *, int);
 static void version(void);
 
@@ -41,7 +45,7 @@ struct Command {
     char *string_command;
     enum IPCCommand command;
     int argc;
-    bool (*handler)(uint32_t *, int , char **);
+    bool (*handler)(uint32_t *, int, char **);
 };
 
 struct ConfigEntry {
@@ -78,6 +82,7 @@ static struct Command c[] = {
     { "window_map"                , IPCWindowMap             ,  1 , fn_hex       },
     { "toggle_window_border"      , IPCToggleWindowBorder    ,  1 , fn_hex       },
     { "toggle_window_sticky"      , IPCToggleWindowSticky    ,  1 , fn_hex       },
+    { "refresh_borders"           , IPCRefreshBorders        ,  0 , NULL         },
     { "group_add_window"          , IPCGroupAddWindow        ,  1 , fn_naturals  },
     { "group_move_window"         , IPCGroupMoveWindow       ,  1 , fn_naturals  },
     { "group_remove_window"       , IPCGroupRemoveWindow     ,  0 , NULL         },
@@ -91,29 +96,27 @@ static struct Command c[] = {
 };
 
 static struct ConfigEntry configs[] = {
-    { "border_width"                , IPCConfigBorderWidth              , 1 , fn_naturals },
-    { "color_focused"               , IPCConfigColorFocused             , 1 , fn_hex      },
-    { "color_unfocused"             , IPCConfigColorUnfocused           , 1 , fn_hex      },
-    { "internal_border_width"		, IPCConfigInternalBorderWidth      , 1 , fn_naturals },
-    { "internal_color_focused"		, IPCConfigInternalColorFocused     , 1 , fn_hex      },
-    { "internal_color_unfocused"    , IPCConfigInternalColorUnfocused   , 1 , fn_hex      },
-    { "gap_width"                   , IPCConfigGapWidth                 , 2 , fn_gap      },
-    { "grid_gap_width"              , IPCConfigGridGapWidth             , 1 , fn_naturals },
-    { "cursor_position"             , IPCConfigCursorPosition           , 1 , fn_position },
-    { "groups_nr"                   , IPCConfigGroupsNr                 , 1 , fn_naturals },
-    { "enable_sloppy_focus"         , IPCConfigEnableSloppyFocus        , 1 , fn_bool     },
-    { "enable_resize_hints"         , IPCConfigEnableResizeHints        , 1 , fn_bool     },
-    { "sticky_windows"              , IPCConfigStickyWindows            , 1 , fn_bool     },
-    { "enable_borders"              , IPCConfigEnableBorders            , 1 , fn_bool     },
-    { "enable_last_window_focusing" , IPCConfigEnableLastWindowFocusing , 1 , fn_bool     },
-    { "apply_settings"              , IPCConfigApplySettings            , 1 , fn_bool     },
-    { "replay_click_on_focus"       , IPCConfigReplayClickOnFocus       , 1 , fn_bool     },
-    { "pointer_actions"             , IPCConfigPointerActions           , 3 , fn_pac      },
-    { "pointer_modifier"            , IPCConfigPointerModifier          , 1 , fn_mod      },
-    { "click_to_focus"              , IPCConfigClickToFocus             , 1 , fn_button   },
-    { "decor_size"                  , IPCConfigDecorSize                , 1 , fn_naturals },
-    { "decor_side"                  , IPCConfigDecorSide                , 1 , fn_naturals },
-    { "decor_color"                 , IPCConfigDecorColor               , 1 , fn_hex      },
+	{ "number_borders"              , IPCConfigNumberBorders            ,  1 , fn_naturals  },
+    { "border_width"                , IPCConfigBorderWidth              , -1 , fn_naturalss },
+    { "color_focused"               , IPCConfigColorFocused             , -1 , fn_hexs      },
+    { "color_unfocused"             , IPCConfigColorUnfocused           , -1 , fn_hexs      },
+    { "gap_width"                   , IPCConfigGapWidth                 ,  2 , fn_gap       },
+    { "grid_gap_width"              , IPCConfigGridGapWidth             ,  1 , fn_naturals  },
+    { "cursor_position"             , IPCConfigCursorPosition           ,  1 , fn_position  },
+    { "groups_nr"                   , IPCConfigGroupsNr                 ,  1 , fn_naturals  },
+    { "enable_sloppy_focus"         , IPCConfigEnableSloppyFocus        ,  1 , fn_bool      },
+    { "enable_resize_hints"         , IPCConfigEnableResizeHints        ,  1 , fn_bool      },
+    { "sticky_windows"              , IPCConfigStickyWindows            ,  1 , fn_bool      },
+    { "enable_borders"              , IPCConfigEnableBorders            ,  1 , fn_bool      },
+    { "enable_last_window_focusing" , IPCConfigEnableLastWindowFocusing ,  1 , fn_bool      },
+    { "apply_settings"              , IPCConfigApplySettings            ,  1 , fn_bool      },
+    { "replay_click_on_focus"       , IPCConfigReplayClickOnFocus       ,  1 , fn_bool      },
+    { "pointer_actions"             , IPCConfigPointerActions           ,  3 , fn_pac       },
+    { "pointer_modifier"            , IPCConfigPointerModifier          ,  1 , fn_mod       },
+    { "click_to_focus"              , IPCConfigClickToFocus             ,  1 , fn_button    },
+    { "decor_size"                  , IPCConfigDecorSize                ,  1 , fn_naturals  },
+    { "decor_side"                  , IPCConfigDecorSide                ,  1 , fn_naturals  },
+    { "decor_color"                 , IPCConfigDecorColor               ,  1 , fn_hex       },
 };
 
 /*
@@ -193,7 +196,7 @@ fn_config(uint32_t *data, int argc, char **argv)
         i++;
 
     if (i < NR_IPC_CONFIGS) {
-        if (configs[i].argc != argc - 1)
+        if (configs[i].argc != -1 && configs[i].argc != argc - 1)
             errx(EXIT_FAILURE, "too many or not enough arguments. Want: %d", configs[i].argc);
         data[0] = configs[i].config;
         status = (configs[i].handler)(data + 1, argc - 1, argv + 1);
@@ -375,6 +378,37 @@ fn_gap(uint32_t *data, int argc, char **argv)
     status = status && fn_naturals(data + 1, 1, argv + 1);
 
     return status;
+}
+
+/*
+ * argc is completely ignored
+ */
+static bool
+fn_hexs(uint32_t *data, int argc, char **argv)
+{
+	(void)(argc);
+	int i = 0;
+
+	while (argv[i]) {
+		data[i] = strtol(argv[i], NULL, 16);
+		i++;
+	}
+
+	return true;
+}
+
+static bool
+fn_naturalss(uint32_t *data, int argc, char **argv)
+{
+	(void)(argc);
+	int i = 0;
+
+	while (argv[i]) {
+		data[i] = strtol(argv[i], NULL, 10);
+		i++;
+	}
+
+	return true;
 }
 
 static void

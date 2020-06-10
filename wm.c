@@ -3,6 +3,7 @@
 
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
@@ -125,7 +126,7 @@ static void update_desktop_viewport(void);
 static void center_pointer(struct client *);
 static struct client * find_client(xcb_window_t *);
 static bool get_geometry(xcb_window_t *, int16_t *, int16_t *, uint16_t *, uint16_t *, uint8_t *);
-static void set_borders(struct client *client, uint32_t, uint32_t);
+static void set_borders(struct client *client, uint32_t *);
 static bool is_mapped(xcb_window_t);
 static void free_window(struct client *);
 
@@ -198,6 +199,7 @@ static void ipc_window_unmap(uint32_t *);
 static void ipc_window_map(uint32_t *);
 static void ipc_toggle_window_border(uint32_t *);
 static void ipc_toggle_window_sticky(uint32_t *);
+static void ipc_refresh_borders(uint32_t *);
 static void ipc_group_add_window(uint32_t *);
 static void ipc_group_move_window(uint32_t *);
 static void ipc_group_remove_window(uint32_t *);
@@ -754,7 +756,8 @@ setup_window(xcb_window_t win)
 
 	update_window_status(client);
 	DMSG("new window was born 0x%08x\n", client->window);
-	setup_decor(client);
+	if (decor.size > 0)
+		setup_decor(client);
 
 	return client;
 }
@@ -774,7 +777,7 @@ setup_decor(struct client *client)
 	dx = client->geom.x;
 	dy = client->geom.y;
 	dw = dh = decor.size;
-	de = conf.borders? 2 * conf.border_width : 0;
+	de = conf.borders? 2 * conf.total_border_width : 0;
 
 	switch (decor.side) {
 	case 0: /* top */
@@ -830,7 +833,7 @@ set_focused_no_raise(struct client *client)
 	map_client(client);
 
 	if (!is_special(client))
-	    set_borders(client, conf.focus_color, conf.internal_focus_color);
+	    set_borders(client, conf.focus_color);
 
 	/* focus the window */
 	xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT,
@@ -847,7 +850,7 @@ set_focused_no_raise(struct client *client)
 	/* set the focus state to inactive on the previously focused window */
 	if (client != focused_win)
 	    if (focused_win != NULL && !is_special(focused_win))
-	        set_borders(focused_win, conf.unfocus_color, conf.internal_unfocus_color);
+	        set_borders(focused_win, conf.unfocus_color);
 
 	if (client->focus_item != NULL)
 	    list_move_to_head(&focus_list, client->focus_item);
@@ -1027,7 +1030,10 @@ resize_window_absolute(xcb_window_t win, uint16_t w, uint16_t h)
 	    resize_decor(client);
 	update_window_status(client);
 
-	refresh_borders();
+	if (client == focused_win)
+		set_borders(client, conf.focus_color);
+	else
+		set_borders(client, conf.unfocus_color);
 }
 
 /*
@@ -1089,8 +1095,8 @@ fit_on_screen(struct client *client)
 	} else if (client->geom.width == mon_width && client->geom.height == mon_height) {
 	    client->geom.x = mon_x;
 	    client->geom.y = mon_y;
-	    client->geom.width -= 2 * conf.border_width;
-	    client->geom.height -= 2 * conf.border_width;
+	    client->geom.width -= 2 * conf.total_border_width;
+	    client->geom.height -= 2 * conf.total_border_width;
 	    maximize_window(client, mon_x, mon_y, mon_width, mon_height);
 	    return;
 	}
@@ -1100,11 +1106,11 @@ fit_on_screen(struct client *client)
 	        || client->geom.x < mon_x || client->geom.y < mon_y) {
 	    will_move = true;
 	    if (client->geom.x > mon_x + mon_width)
-	        client->geom.x = mon_x + mon_width - client->geom.width - 2 * conf.border_width;
+	        client->geom.x = mon_x + mon_width - client->geom.width - 2 * conf.total_border_width;
 	    else if (client->geom.x < mon_x)
 	        client->geom.x = mon_x;
 	    if (client->geom.y > mon_y + mon_height)
-	        client->geom.y = mon_y + mon_height - client->geom.height - 2 * conf.border_width;
+	        client->geom.y = mon_y + mon_height - client->geom.height - 2 * conf.total_border_width;
 	    else if (client->geom.y < mon_y)
 	        client->geom.y = mon_y;
 	}
@@ -1122,23 +1128,23 @@ fit_on_screen(struct client *client)
 
 	/* If the window is larger than the screen or is a bit in the outside,
 	 * move it to the corner and resize it accordingly. */
-	if (client->geom.width + 2 * conf.border_width > mon_width) {
+	if (client->geom.width + 2 * conf.total_border_width > mon_width) {
 	    client->geom.x = mon_x;
-	    client->geom.width = mon_width - 2 * conf.border_width;
+	    client->geom.width = mon_width - 2 * conf.total_border_width;
 	    will_move = will_resize = true;
-	} else if (client->geom.x + client->geom.width + 2 * conf.border_width
+	} else if (client->geom.x + client->geom.width + 2 * conf.total_border_width
 	        > mon_x + mon_width) {
-	    client->geom.x = mon_x + mon_width - client->geom.width - 2 * conf.border_width;
+	    client->geom.x = mon_x + mon_width - client->geom.width - 2 * conf.total_border_width;
 	    will_move = true;
 	}
 
-	if (client->geom.height + 2 * conf.border_width > mon_height) {
+	if (client->geom.height + 2 * conf.total_border_width > mon_height) {
 	    client->geom.y = mon_y;
-	    client->geom.height = mon_height - 2 * conf.border_width;
+	    client->geom.height = mon_height - 2 * conf.total_border_width;
 	    will_move = will_resize = true;
-	} else if (client->geom.y + client->geom.height + 2 * conf.border_width
+	} else if (client->geom.y + client->geom.height + 2 * conf.total_border_width
 	        > mon_y + mon_height) {
-	    client->geom.y = mon_y + mon_height - client->geom.height - 2 * conf.border_width;
+	    client->geom.y = mon_y + mon_height - client->geom.height - 2 * conf.total_border_width;
 	    will_move = true;
 	}
 
@@ -1194,7 +1200,7 @@ hmaximize_window(struct client *client, int16_t mon_x, uint16_t mon_width)
 	if (client->geom.width != mon_width)
 	    client->orig_geom = client->geom;
 	client->geom.x = mon_x + conf.gap_left;
-	client->geom.width = mon_width - conf.gap_left - conf.gap_right - 2 * conf.border_width;
+	client->geom.width = mon_width - conf.gap_left - conf.gap_right - 2 * conf.total_border_width;
 
 	teleport_window(client->window, client->geom.x, client->geom.y);
 	resize_window_absolute(client->window, client->geom.width, client->geom.height);
@@ -1217,7 +1223,7 @@ vmaximize_window(struct client *client, int16_t mon_y, uint16_t mon_height)
 	    client->orig_geom = client->geom;
 
 	client->geom.y = mon_y + conf.gap_up;
-	client->geom.height = mon_height - conf.gap_up - conf.gap_down - 2 * conf.border_width;
+	client->geom.height = mon_height - conf.gap_up - conf.gap_down - 2 * conf.total_border_width;
 
 	teleport_window(client->window, client->geom.x, client->geom.y);
 	resize_window_absolute(client->window, client->geom.width, client->geom.height);
@@ -1240,9 +1246,9 @@ monocle_window(struct client *client, int16_t mon_x, int16_t mon_y, uint16_t mon
 
 	client->geom.x = mon_x + conf.gap_left;
 	client->geom.y = mon_y + conf.gap_up;
-	client->geom.width = mon_width - 2 * conf.border_width
+	client->geom.width = mon_width - 2 * conf.total_border_width
 	    - conf.gap_left - conf.gap_right;
-	client->geom.height = mon_height - 2 * conf.border_width
+	client->geom.height = mon_height - 2 * conf.total_border_width
 	    - conf.gap_up - conf.gap_down;
 	teleport_window(client->window, client->geom.x, client->geom.y);
 	resize_window_absolute(client->window, client->geom.width, client->geom.height);
@@ -1269,7 +1275,7 @@ reset_window(struct client *client)
 
 	teleport_window(client->window, client->geom.x, client->geom.y);
 	resize_window_absolute(client->window, client->geom.width, client->geom.height);
-	set_borders(client, conf.unfocus_color, conf.internal_unfocus_color);
+	set_borders(client, conf.unfocus_color);
 
 	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, client->window,
 	        ewmh->_NET_WM_STATE, ewmh->_NET_WM_STATE, 32, 2, state);
@@ -1286,7 +1292,7 @@ resize_decor(struct client *client)
 	unsigned int values[2];
 	int dw, dh, de;
 	dw = dh = decor.size;
-	de = conf.borders? 2 * conf.border_width : 0;
+	de = conf.borders? 2 * conf.total_border_width : 0;
 
 	switch (decor.side) {
 	case 0: case 1:
@@ -1805,20 +1811,20 @@ center_pointer(struct client *client)
 
 	switch (conf.cursor_position) {
 	case TOP_LEFT:
-	    cur_x = -conf.border_width;
-	    cur_y = -conf.border_width;
+	    cur_x = -conf.total_border_width;
+	    cur_y = -conf.total_border_width;
 	    break;
 	case TOP_RIGHT:
-	    cur_x = client->geom.width + conf.border_width;
-	    cur_y = 0 - conf.border_width;
+	    cur_x = client->geom.width + conf.total_border_width;
+	    cur_y = 0 - conf.total_border_width;
 	    break;
 	case BOTTOM_LEFT:
-	    cur_x = 0 - conf.border_width;
-	    cur_y = client->geom.height + conf.border_width;
+	    cur_x = 0 - conf.total_border_width;
+	    cur_y = client->geom.height + conf.total_border_width;
 	    break;
 	case BOTTOM_RIGHT:
-	    cur_x = client->geom.width + conf.border_width;
-	    cur_y = client->geom.height + conf.border_width;
+	    cur_x = client->geom.width + conf.total_border_width;
+	    cur_y = client->geom.height + conf.total_border_width;
 	    break;
 	case CENTER:
 	    cur_x = client->geom.width / 2;
@@ -1878,112 +1884,99 @@ get_geometry(xcb_window_t *win, int16_t *x, int16_t *y, uint16_t *width, uint16_
 
 /*
  * Set the color of the border.
+ * N borders setup is from neeasade's opt
+ * Refer to https://github.com/neeasade/opt
  */
 
 static void
-set_borders(struct client *client, uint32_t color, uint32_t internal_color)
+set_borders(struct client *client, uint32_t *color)
 {
 	if (client == NULL || conf.borders == false || client->bordered == false)
 	    return;
 	uint32_t values[1];
-	values[0] = conf.border_width;
+	values[0] = conf.total_border_width;
 	xcb_configure_window(conn, client->window,
 	        XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
-	if (conf.internal_border_width == 0) {
-        values[0] = color;
-        xcb_change_window_attributes(conn, client->window, XCB_CW_BORDER_PIXEL, values);
-    }
+	xcb_pixmap_t pmap = xcb_generate_id(conn);
+	xcb_create_pixmap(conn, scr->root_depth, pmap, client->window,
+				client->geom.width  + (conf.total_border_width * 2),
+				client->geom.height + (conf.total_border_width * 2));
 
-    if (conf.internal_border_width != 0) {
-        uint32_t calc_iborder = conf.border_width - conf.internal_border_width;
-        xcb_rectangle_t rect_inner[] = {
-            {
-                client->geom.width,
-                0,
-                conf.border_width - calc_iborder,
-                client->geom.height + conf.border_width - calc_iborder
-            },
-            {
-                client->geom.width + conf.border_width + calc_iborder,
-                0,
-                conf.border_width - calc_iborder,
-                client->geom.height + conf.border_width - calc_iborder
-            },
-            {
-                0,
-                client->geom.height,
-                client->geom.width + conf.border_width - calc_iborder,
-                conf.border_width - calc_iborder
-            },
-            {
-                0,
-                client->geom.height + conf.border_width + calc_iborder,
-                client->geom.width + conf.border_width - calc_iborder,
-                conf.border_width - calc_iborder
-            },
-            {
-                client->geom.width + conf.border_width + calc_iborder,
-                conf.border_width + client->geom.height + calc_iborder,
-                conf.border_width,
-                conf.border_width
-            }
-        };
+	xcb_gcontext_t gc = xcb_generate_id(conn);
+	xcb_create_gc(conn, gc, pmap, 0, NULL);
 
-        xcb_rectangle_t rect_outer[] = {
-            {
-                client->geom.width + conf.border_width - calc_iborder,
-                0,
-                calc_iborder,
-                client->geom.height + conf.border_width * 2
-            },
-            {
-                client->geom.width + conf.border_width,
-                0,
-                calc_iborder,
-                client->geom.height + conf.border_width * 2
-            },
-            {
-                0,
-                client->geom.height + conf.border_width - calc_iborder,
-                client->geom.width + conf.border_width * 2,
-                calc_iborder
-            },
-            {
-                0,
-                client->geom.height + conf.border_width,
-                client->geom.width + conf.border_width * 2,
-                calc_iborder
-            },
-            {
-                1,1,1,1
-            }
-        };
+	xcb_rectangle_t rectangles[] = {
+	   {-1, -1, -1, -1}, {-1, -1, -1, -1},
+	   {-1, -1, -1, -1}, {-1, -1, -1, -1},
+	   {-1, -1, -1, -1}, {-1, -1, -1, -1},
+	   {-1, -1, -1, -1}, {-1, -1, -1, -1}
+	};
 
-        xcb_pixmap_t pmap = xcb_generate_id(conn);
-        xcb_create_pixmap(conn, client->depth, pmap, scr->root,
-            client->geom.width + (conf.border_width * 2),
-            client->geom.height + (conf.border_width * 2)
-        );
+	uint32_t bw = conf.total_border_width;
+	short h = client->geom.height,
+		w = client->geom.width,
+		offset = 0, cbw = 0;
 
-        xcb_gcontext_t gc = xcb_generate_id(conn);
-        xcb_create_gc(conn, gc, pmap, 0, NULL);
+	for (int i = 0; i < conf.number_borders; i++) {
+		DMSG("setting border number %d\n", i+1);
+		cbw = conf.border_width[i];
+		values[0] = color[i];
 
-        values[0] = color;
-        xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &values[0]);
-        xcb_poly_fill_rectangle(conn, pmap, gc, 5, rect_outer);
+		/* outside in */
+		/* right, bottom, left, top */
+		rectangles[0] = (xcb_rectangle_t){
+			w + bw - offset - cbw, 0,
+			cbw, h + bw - offset
+		};
+		rectangles[1] = (xcb_rectangle_t){
+			0, h + bw - offset - cbw,
+			w + bw - offset,cbw
+		};
+		rectangles[2] = (xcb_rectangle_t){
+			w + bw + offset, 0,
+			cbw, h + bw - offset
+		};
+		rectangles[3] = (xcb_rectangle_t){
+			0, h + bw + offset,
+			w + bw - offset, cbw
+		};
 
-        values[0] = internal_color;
-        xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &values[0]);
-        xcb_poly_fill_rectangle(conn, pmap, gc, 5, rect_inner);
+		/* lower left corner fix */
+		rectangles[6] = (xcb_rectangle_t){
+			w + bw + offset, h + bw - offset - cbw,
+			bw - offset, cbw
+		};
+		/* upper right corner fix */
+		rectangles[7] = (xcb_rectangle_t){
+			w + bw - offset - cbw, h + bw + offset,
+			cbw, bw - offset
+		};
 
-        values[0] = pmap;
-        xcb_change_window_attributes(conn,client->window, XCB_CW_BORDER_PIXMAP,
-                &values[0]);
+		/* corner */
+		rectangles[4] = (xcb_rectangle_t){
+			w + bw + offset, h + bw + offset,
+			cbw, h + bw + bw - (h + bw + offset)
+		};
+		rectangles[5] = (xcb_rectangle_t){
+			w + bw + offset, h + bw + offset,
+			w + bw + bw - (w + bw + offset), cbw
+		};
 
-        xcb_free_pixmap(conn,pmap);
-        xcb_free_gc(conn,gc);
-    }
+		xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, values);
+		xcb_poly_fill_rectangle(conn, pmap, gc, 8, rectangles);
+		xcb_aux_sync(conn);
+		offset += cbw;
+	}
+
+	values[0] = pmap;
+	xcb_change_window_attributes(conn, client->window,
+								 XCB_CW_BORDER_PIXMAP, values);
+
+	xcb_free_pixmap(conn, pmap);
+	xcb_free_gc(conn, gc);
+
+	xcb_aux_sync(conn);
 }
 
 /*
@@ -2344,9 +2337,9 @@ refresh_borders(void)
 	        continue;
 
 	    if (client == focused_win)
-	        set_borders(client, conf.focus_color, conf.internal_focus_color);
+	        set_borders(client, conf.focus_color);
 	    else
-	        set_borders(client, conf.unfocus_color, conf.internal_unfocus_color);
+	        set_borders(client, conf.unfocus_color);
 	}
 }
 
@@ -2480,8 +2473,8 @@ snap_window(struct client *client, enum position pos)
 
 	win_x = client->geom.x;
 	win_y = client->geom.y;
-	win_w = client->geom.width + 2 * conf.border_width;
-	win_h = client->geom.height + 2 * conf.border_width;
+	win_w = client->geom.width + 2 * conf.total_border_width;
+	win_h = client->geom.height + 2 * conf.total_border_width;
 
 	get_monitor_size(client, &mon_x, &mon_y, &mon_w, &mon_h);
 
@@ -2547,22 +2540,22 @@ grid_window(struct client *client, uint16_t grid_width, uint16_t grid_height, ui
 	get_monitor_size(client, &mon_x, &mon_y, &mon_w, &mon_h);
 
 	base_w = (mon_w - conf.gap_left - conf.gap_right - (grid_width - 1) * conf.grid_gap
-	        - grid_width * 2 * conf.border_width) / grid_width;
+	        - grid_width * 2 * conf.total_border_width) / grid_width;
 	base_h = (mon_h - conf.gap_up - conf.gap_down - (grid_height - 1) * conf.grid_gap
-	        - grid_height * 2 * conf.border_width) / grid_height;
+	        - grid_height * 2 * conf.total_border_width) / grid_height;
 	/* calculate new window size */
-	new_w = base_w * occ_w + (occ_w - 1) * (conf.grid_gap + 2 * conf.border_width);
+	new_w = base_w * occ_w + (occ_w - 1) * (conf.grid_gap + 2 * conf.total_border_width);
 
-	new_h = base_h * occ_h + (occ_h - 1) * (conf.grid_gap + 2 * conf.border_width);
+	new_h = base_h * occ_h + (occ_h - 1) * (conf.grid_gap + 2 * conf.total_border_width);
 
 	client->orig_geom = client->geom;
 	client->geom.width = new_w;
 	client->geom.height = new_h;
 
 	client->geom.x = mon_x + conf.gap_left + grid_x
-	    * (conf.border_width + base_w + conf.border_width + conf.grid_gap);
+	    * (conf.total_border_width + base_w + conf.total_border_width + conf.grid_gap);
 	client->geom.y = mon_y + conf.gap_up + grid_y
-	    * (conf.border_width + base_h + conf.border_width + conf.grid_gap);
+	    * (conf.total_border_width + base_h + conf.total_border_width + conf.grid_gap);
 
 	client->gridded = true;
 	client->grid.gx = grid_width;
@@ -2841,7 +2834,7 @@ event_map_request(xcb_generic_event_t *ev)
 	update_client_list();
 
 	if (!client->maxed)
-	    set_borders(client, conf.focus_color, conf.internal_focus_color);
+	    set_borders(client, conf.focus_color);
 	update_current_desktop(client);
 }
 
@@ -3061,6 +3054,7 @@ register_ipc_handlers(void)
 	ipc_handlers[IPCWMConfig]              = ipc_wm_config;
 	ipc_handlers[IPCToggleWindowBorder]    = ipc_toggle_window_border;
 	ipc_handlers[IPCToggleWindowSticky]    = ipc_toggle_window_sticky;
+	ipc_handlers[IPCRefreshBorders]        = ipc_refresh_borders;
 }
 
 static void
@@ -3435,15 +3429,13 @@ ipc_window_map(uint32_t *d)
 static void
 ipc_toggle_window_border(uint32_t *d)
 {
-	uint32_t values[1];
 	struct client *client = find_client(&d[0]);
 	if (client == NULL)
 		return;
 
 	client->bordered = !client->bordered;
-	values[0] = (client->bordered == false)? 0 : conf.border_width;
-	xcb_configure_window(conn, client->window,
-        XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+	set_borders(client,
+		(client == focused_win)? conf.focus_color : conf.unfocus_color);
 }
 
 static void
@@ -3454,6 +3446,13 @@ ipc_toggle_window_sticky(uint32_t *d)
 		return;
 
 	client->sticky = !client->sticky;
+}
+
+static void
+ipc_refresh_borders(uint32_t *d)
+{
+	(void)d;
+	refresh_borders();
 }
 
 static void
@@ -3524,42 +3523,32 @@ ipc_wm_config(uint32_t *d)
 	key = d[0];
 
 	switch (key) {
+	case IPCConfigNumberBorders:
+		conf.number_borders = d[1];
+		DMSG("number of borders set to %d\n", conf.number_borders);
+		break;
 	case IPCConfigBorderWidth:
-	    conf.border_width = d[1];
-	    if (conf.apply_settings) {
-	        refresh_borders();
-	        infobordersize(conf.border_width);
-	    }
+		conf.total_border_width = 0;
+		conf.border_width = realloc(conf.border_width,
+							conf.number_borders * sizeof(int32_t));
+		for (int i = 1; i <= conf.number_borders; i++) {
+			conf.border_width[i] = d[i];
+			conf.total_border_width += d[i];
+		}
+		DMSG("total border width set to %d\n", conf.total_border_width);
 	    break;
 	case IPCConfigColorFocused:
-	    conf.focus_color = d[1];
-	    if (conf.apply_settings) {
-	        refresh_borders();
-	        infoborderselcol(conf.focus_color);
-	    }
+		conf.focus_color = realloc(conf.focus_color,
+							conf.number_borders * sizeof(uint32_t));
+		for (int i = 1; i <= conf.number_borders; i++)
+			conf.focus_color[i] = d[i];
 	    break;
 	case IPCConfigColorUnfocused:
-	    conf.unfocus_color = d[1];
-	    if (conf.apply_settings) {
-	        refresh_borders();
-	        infobordernormcol(conf.unfocus_color);
-		}
+		conf.unfocus_color = realloc(conf.unfocus_color,
+							conf.number_borders * sizeof(uint32_t));
+		for (int i = 1; i <= conf.number_borders; i++)
+			conf.unfocus_color[i] = d[i];
 	    break;
-    case IPCConfigInternalBorderWidth:
-        conf.internal_border_width = d[1];
-        if (conf.apply_settings)
-            refresh_borders();
-        break;
-    case IPCConfigInternalColorFocused:
-        conf.internal_focus_color = d[1];
-        if (conf.apply_settings)
-            refresh_borders();
-        break;
-    case IPCConfigInternalColorUnfocused:
-        conf.internal_unfocus_color = d[1];
-        if (conf.apply_settings)
-            refresh_borders();
-		break;
 	case IPCConfigGapWidth:
 	    switch (d[1]) {
 	    case LEFT: conf.gap_left   = d[2]; break;
@@ -3592,7 +3581,7 @@ ipc_wm_config(uint32_t *d)
 	    break;
 	case IPCConfigEnableBorders:
 	    conf.borders = d[1];
-	    int size = conf.borders == true ? conf.border_width : 0;
+	    int size = conf.borders == true ? conf.total_border_width : 0;
 	    infobordersize(size);
 	    break;
 	case IPCConfigEnableLastWindowFocusing:
@@ -3996,12 +3985,14 @@ static void version(void)
 static void
 load_defaults(void)
 {
-	conf.border_width    = BORDER_WIDTH;
-	conf.focus_color     = COLOR_FOCUS;
-	conf.unfocus_color   = COLOR_UNFOCUS;
-	conf.internal_border_width    = INTERNAL_BORDER_WIDTH;
-	conf.internal_focus_color     = INTERNAL_COLOR_FOCUS;
-	conf.internal_unfocus_color   = INTERNAL_COLOR_UNFOCUS;
+	conf.number_borders = 1;
+	conf.total_border_width = BORDER_WIDTH;
+	conf.border_width = calloc(1, sizeof(int32_t));
+	conf.focus_color = calloc(1, sizeof(uint32_t));
+	conf.unfocus_color = calloc(1, sizeof(uint32_t));
+	conf.border_width[0]  = BORDER_WIDTH;
+	conf.focus_color[0]   = COLOR_FOCUS;
+	conf.unfocus_color[0] = COLOR_UNFOCUS;
 	conf.gap_left = conf.gap_down
 	              = conf.gap_up
 	              = conf.gap_right
@@ -4022,7 +4013,7 @@ load_defaults(void)
 	conf.pointer_modifier = POINTER_MODIFIER;
 	conf.click_to_focus = CLICK_TO_FOCUS_BUTTON;
 
-	decor.color = conf.unfocus_color;
+	decor.color = conf.unfocus_color[0];
 	decor.side = 0;
 	decor.size = 20;
 }
