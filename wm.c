@@ -3973,7 +3973,8 @@ usage(char *name)
 	exit(EXIT_SUCCESS);
 }
 
-static void version(void)
+static void
+version(void)
 {
 	fprintf(stderr, "%s %s\n", __NAME__, __THIS_VERSION__);
 	fprintf(stderr, "Copyright (c) 2016-2017 Tudor Ioan Roman\n");
@@ -4096,6 +4097,9 @@ main(int argc, char *argv[])
 	run();
 
 	free(config_path);
+	free(conf.border_width);
+	free(conf.focus_color);
+	free(conf.unfocus_color);
 
 	return exit_code;
 }
