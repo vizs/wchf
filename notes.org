@@ -1,0 +1,36 @@
+#+TITLE:Some notes on this fork of windowchef
+* Name Change
+Originally the name change was because windowchef was too long to type out.
+But I think I added quite a few things to this fork that will make it quite a bit
+different than what tudurom would like on his window manager.
+* Borders
+Windowchef had 2 borders but I added N borders based on neeasade's
+border utilities which somewhat goes against tudurom's ideas (see #54).
+
+Also inspired by that issue, I'm thinking a per-window basis border change
+thing would be nice to have, especially related to groups? (inspo: neeasade's
+tags workflow).
+* Events
+~Wew(1)~ from wmutils is a really nice tool but it fails to work properly,
+it's not ~wew(1)~'s fault but rather it is the way Xorg works, so I think adding
+a way to execute a set of scripts when an event is emitted would be nice.
+
+This can replace the need to have ~ruler(1)~ in your setup too!
+** Why?
+I think the main reason why I want this would be to have a event driven
+bar, see my experiment ~abar~, and also it would be really handy to make
+a tiling script utilising grids.
+
+PS: ~abar~ failed due to my incompetence on C programming. I have to
+revisit my lemonbar fork at a later time.
+* Info filesystem
+A really bad and wonky info filesystem interface is present -- ~/tmp/info/wm~
+but exposing client properties would be nice too I think. Something like
+~x11fs(1)~ would be handy to have when you script. Although this might
+never happen since I'm not comfortable with C at all.
+* Window decoration
+Right now, a really bad implementation of window decoration is in the fork.
+I have plans to extend it by adding different /styles/ of window decorations like
+gradient, solid, or whatever. Maybe being to able adding arbitrary text on the
+decoration would be nice too but ~libXft~ is /really fun/ to work with -- I went
+nowhere with my previous experiments.
