@@ -3529,7 +3529,13 @@ ipc_wm_config(uint32_t *d)
 		conf.total_border_width = 0;
 		conf.border_width = realloc(conf.border_width,
 							conf.number_borders * sizeof(int8_t));
+		int i = 1;
+		while (d[i]) {
+			DMSG("%d\n", d[i]);
+			i++;
+		}
 		for (int i = 1; i <= conf.number_borders; i++) {
+			DMSG("border%d width is %d\n", i, d[i]);
 			conf.border_width[i-1] = d[i];
 			conf.total_border_width += d[i];
 		}

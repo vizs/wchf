@@ -10,6 +10,9 @@ border utilities which somewhat goes against tudurom's ideas (see #54).
 Also inspired by that issue, I'm thinking a per-window basis border change
 thing would be nice to have, especially related to groups? (inspo: neeasade's
 tags workflow).
+
+You can't really get N border right now due to the very low amount of bytes
+that can be sent as a message. Maybe I need to use a socket instead?
 * Events
 ~Wew(1)~ from wmutils is a really nice tool but it fails to work properly,
 it's not ~wew(1)~'s fault but rather it is the way Xorg works, so I think adding
