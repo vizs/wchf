@@ -32,7 +32,6 @@
 #define EVENT_MASK(ev) (((ev) & ~0x80))
 /* XCB event with the biggest value */
 #define LAST_XCB_EVENT XCB_GET_MODIFIER_MAPPING
-#define NULL_GROUP 0xffffffff
 #define PI 3.14159265
 
 /* atoms identifiers */
@@ -54,8 +53,7 @@ static int scrno;
 static int  randr_base;
 static bool halt;
 static int  exit_code;
-static bool *group_in_use = NULL;
-static int  last_group = 0;
+static int  groups;
 /* keyboard modifiers (for mouse support) */
 static uint16_t num_lock, caps_lock, scroll_lock;
 static const xcb_button_index_t mouse_buttons[] = {
@@ -132,21 +130,16 @@ static void free_window(struct client *);
 
 static void add_to_client_list(xcb_window_t);
 static void update_client_list(void);
-static void update_wm_desktop(struct client *);
 static void update_current_desktop(struct client *);
 static void update_window_status(struct client *);
 
-static void group_add_window(struct client *, uint32_t);
+static void group_switch(uint32_t);
+static void group_combine(uint32_t);
+static void group_combine_or_toggle(uint32_t);
 static void group_move_window(struct client *, uint32_t);
-static void group_remove_window(struct client *);
-static void group_remove_all_windows(uint32_t);
-static void group_activate(uint32_t);
-static void group_deactivate(uint32_t);
-static void group_toggle(uint32_t);
-static void group_activate_specific(uint32_t);
+static void change_nr_of_groups(uint32_t);
 
 static void update_group_list(void);
-static void change_nr_of_groups(uint32_t);
 static void refresh_borders(void);
 static void update_ewmh_wm_state(struct client *);
 static void handle_wm_state(struct client *, xcb_atom_t, unsigned int);
@@ -200,14 +193,10 @@ static void ipc_window_map(uint32_t *);
 static void ipc_toggle_window_border(uint32_t *);
 static void ipc_toggle_window_sticky(uint32_t *);
 static void ipc_refresh_borders(uint32_t *);
-static void ipc_group_add_window(uint32_t *);
+static void ipc_group_switch(uint32_t *);
+static void ipc_group_combine(uint32_t *);
+static void ipc_group_combine_or_toggle(uint32_t *);
 static void ipc_group_move_window(uint32_t *);
-static void ipc_group_remove_window(uint32_t *);
-static void ipc_group_remove_all_windows(uint32_t *);
-static void ipc_group_activate(uint32_t *);
-static void ipc_group_deactivate(uint32_t *);
-static void ipc_group_toggle(uint32_t *);
-static void ipc_group_activate_specific(uint32_t *);
 static void ipc_wm_quit(uint32_t *);
 static void ipc_wm_config(uint32_t *);
 
@@ -323,9 +312,6 @@ setup(void)
 
 	randr_base = setup_randr();
 
-	group_in_use = malloc(conf.groups * sizeof(bool));
-	for (uint32_t i = 0; i < conf.groups; i++)
-	    group_in_use[i] = false;
 	return 0;
 }
 
@@ -701,7 +687,7 @@ setup_window(xcb_window_t win)
 	xcb_change_save_set(conn, XCB_SET_MODE_INSERT, win);
 
 	/* assign to the null group */
-	xcb_ewmh_set_wm_desktop(ewmh, win, NULL_GROUP);
+	xcb_ewmh_set_wm_desktop(ewmh, win, 0);
 
 	item = list_add_item(&win_list);
 	if (item == NULL)
@@ -733,7 +719,7 @@ setup_window(xcb_window_t win)
 	client->monitor = NULL;
 	client->mapped  = client->umapped_user = client->sticky = false;
 	client->bordered = true;
-	client->group   = NULL_GROUP;
+	client->group   = groups;
 	get_geometry(&client->window, &client->geom.x, &client->geom.y,
 	        &client->geom.width, &client->geom.height, &client->depth);
 
@@ -1916,10 +1902,10 @@ set_borders(struct client *client, uint32_t *color)
 		offset = 0, cbw = 0;
 
 	for (int i = 0; i < conf.number_borders; i++) {
-		DMSG("setting border number %d\n", i+1);
+		/* DMSG("setting border number %d\n", i+1); */
 		cbw = conf.border_width[i];
 		values[0] = color[i];
-		DMSG("color%d is %x\n", i+1, values[0]);
+		/* DMSG("color%d is %x\n", i+1, values[0]); */
 
 		/* outside in */
 		/* right, bottom, left, top */
@@ -2063,13 +2049,6 @@ update_client_list(void)
 }
 
 static void
-update_wm_desktop(struct client *client)
-{
-	if (client != NULL)
-	    xcb_ewmh_set_wm_desktop(ewmh, client->window, client->group);
-}
-
-static void
 update_current_desktop(struct client *client)
 {
 	if (client != NULL)
@@ -2127,197 +2106,112 @@ update_window_status(struct client *client)
 }
 
 static void
-group_add_window(struct client *client, uint32_t group)
+group_switch(uint32_t n)
 {
-	if (client != NULL && group < conf.groups) {
-	    client->group = group;
-	    group_in_use[group] = true;
-	    update_wm_desktop(client);
-	    update_group_list();
-	    update_current_desktop(client);
-	    update_window_status(client);
-	}
-}
-
-static void
-group_move_window(struct client *client, uint32_t group)
-{
-	if (client != NULL && group < conf.groups && !client->sticky) {
-	    client->group = group;
-	    group_in_use[group] = true;
-	    unmap_client(client);
-	    update_wm_desktop(client);
-	    update_group_list();
-	    update_current_desktop(client);
-	    update_window_status(client);
-	}
-}
-
-static void
-group_remove_window(struct client *client)
-{
-	if (client != NULL && !client->sticky) {
-	    client->group = NULL_GROUP;
-	    update_wm_desktop(client);
-	    update_group_list();
-	    update_current_desktop(client);
-	    update_window_status(client);
-	}
-}
-
-static void
-group_remove_all_windows(uint32_t group)
-{
-	if (group >= conf.groups)
-	    return;
-
 	struct list_item *item;
 	struct client *client;
 
 	for (item = win_list; item != NULL; item = item->next) {
-	    client = item->data;
-	    if (client != NULL && client->group == group && !client->sticky) {
-	        group_remove_window(client);
-	    }
+		client = item->data;
+		if (client == NULL)
+			return;
+		if ((client->group & n) == 0 || client->sticky) {
+			map_client(client);
+			if (!client->sticky)
+				set_focused(client);
+		} else
+			unmap_client(client);
 	}
 
-	group_in_use[group] = false;
+	groups = ((1 << conf.groups) - 1) & ~n;
 }
 
 static void
-group_activate(uint32_t group)
+group_combine(uint32_t n)
 {
-	if (group >= conf.groups)
-	    return;
-
 	struct list_item *item;
 	struct client *client;
 
 	for (item = win_list; item != NULL; item = item->next) {
-	    client = item->data;
-	    if ((client->group == group
-	    && !client->umapped_user)
-		|| client->sticky) {
-	        map_client(client);
-	        if (!client->sticky) set_focused(client);
-	    }
+		client = item->data;
+		if (client != NULL && (client->group & n) == 0)
+			map_client(client);
 	}
-	group_in_use[group] = true;
-	last_group = group;
-	update_group_list();
+
+	groups &= ~n;
 }
 
 static void
-group_deactivate(uint32_t group)
+group_combine_or_toggle(uint32_t n)
 {
-	if (group >= conf.groups)
-	    return;
+	if ((groups & n) != 0) {
+		group_combine(n);
+		return;
+	}
 
+	/* Unmap clients whose groups do not contain `n'  */
 	struct list_item *item;
 	struct client *client;
 
 	for (item = win_list; item != NULL; item = item->next) {
-	    client = item->data;
-	    if (client->group == group && !client->sticky)
-	        unmap_client(client);
+		client = item->data;
+		if (client != NULL && (client->group & n) == 0)
+			unmap_client(client);
 	}
-	group_in_use[group] = false;
-	update_group_list();
+	groups |= n;
 }
 
 static void
-group_toggle(uint32_t group)
+group_move_window(struct client *client, uint32_t n)
 {
-	if (group >= conf.groups)
-	    return;
+	/*  if active group does not contain `n'
+	 *  then unmap the client
+     */
+	if ((groups & n) != 0)
+		unmap_client(client);
 
-	if (group_in_use[group])
-	    group_deactivate(group);
-	else
-	    group_activate(group);
-	last_group = group;
-	update_group_list();
+	client->group = ((1 << conf.groups) - 1) & ~n;
 }
 
 static void
-group_activate_specific(uint32_t group)
+change_nr_of_groups(uint32_t n)
 {
-	if (group >= conf.groups)
-	    return;
+	if (n < conf.groups) {
+		struct list_item *item;
+		struct client *client;
 
-	for (unsigned int i = 0; i < conf.groups; i++) {
-	    if (i == group)
-	        group_activate(i);
-	    else
-	        group_deactivate(i);
+		groups &= (1 << n) - 1;
+
+		/* For all groups i > n; map the clients and set their group to zero */
+		for (item = win_list; item != NULL; item = item->next) {
+			client = item->data;
+			if (client == NULL) continue;
+			for (uint32_t i = conf.groups - n; i <= n; i++)
+				if ((client->group & i) == 0) {
+					map_client(client);
+					client->group = 0;
+				}
+		}
+	} else {
+		int oldgroups = groups;
+
+		groups = (1 << n) - 1;
+		for (uint32_t i = 1; i <= conf.groups; i++)
+			if ((oldgroups & i) == 0)
+				groups &= ~i;
 	}
-	update_group_list();
-	infosetmaingroup(group + 1);
+
+	conf.groups = n;
 }
 
 static void
 update_group_list(void)
 {
-	struct list_item *item;
-	struct client *client;
-	bool first = true;
-	uint32_t data[1];
-	int counter = 0;
-	int groups[conf.groups];
+	uint32_t data[1] = { groups };
 
-	for (unsigned int i = 0; i < conf.groups; i++) {
-	    /* deactivate group if no window in group */
-	    item = win_list;
-	    while (item != NULL && (client = item->data)->group != i)
-	        item = item->next;
-	    if (item == NULL)
-	        group_in_use[i] = false;
-
-	    if (group_in_use[i]) {
-	        uint8_t mode = XCB_PROP_MODE_APPEND;
-	        data[0] = i + 1;
-	        groups[counter] = i + 1;
-	        counter++;
-	        if (first) {
-	            mode = XCB_PROP_MODE_REPLACE;
-	            first = false;
-	        }
-	        xcb_change_property(conn, mode, scr->root, ATOMS[WINDOWCHEF_ACTIVE_GROUPS], XCB_ATOM_INTEGER, 32, 1, data);
-	    }
-	}
-
-	infosetactivegroups(counter, groups);
-
-	if (first) {
-	    data[0] = 0;
-	    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, scr->root, ATOMS[WINDOWCHEF_ACTIVE_GROUPS], XCB_ATOM_INTEGER, 32, 1, data);
-	}
-}
-
-static void
-change_nr_of_groups(uint32_t groups)
-{
-	bool *copy = malloc(groups * sizeof(bool));
-	uint32_t until = groups < conf.groups ? groups : conf.groups;
-	struct list_item *item;
-	struct client *client;
-
-	for (uint32_t i = 0; i < until; i++)
-	    copy[i] = group_in_use[i];
-
-	if (groups < conf.groups)
-	    for (item = win_list; item != NULL; item = item->next) {
-	        client = item->data;
-	        if (client->group != NULL_GROUP && client->group >= groups) {
-	            group_activate(client->group);
-	            client->group = NULL_GROUP;
-	            update_wm_desktop(client);
-	        }
-	    }
-
-	conf.groups = groups;
-	free(group_in_use);
-	group_in_use = copy;
+	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, scr->root,
+			ATOMS[WINDOWCHEF_ACTIVE_GROUPS], XCB_ATOM_INTEGER, 32, 1, data);
+	infosetactivegroups(conf.groups, groups);
 }
 
 static void
@@ -2795,18 +2689,6 @@ event_map_request(xcb_generic_event_t *ev)
 	    /* client is a dock or some kind of window that needs to be ignored */
 	    if (client == NULL)
 	        return;
-
-	    /* i dont really like this tbh */
-	    /* if (!client->geom.set_by_user) { */
-	        /* if (!get_pointer_location(&scr->root, &client->geom.x, &client->geom.y)) */
-	            /* client->geom.x = client->geom.y = 0; */
-
-	        /* client->geom.x -= client->geom.width / 2; */
-	        /* client->geom.y -= client->geom.height / 2; */
-	        /* teleport_window(client->window, client->geom.x, client->geom.y); */
-	    /* } */
-	    if (conf.sticky_windows)
-	        group_add_window(client, last_group);
 	}
 
 	xcb_map_window(conn, e->window);
@@ -3040,14 +2922,10 @@ register_ipc_handlers(void)
 	ipc_handlers[IPCWindowFocusLast]       = ipc_window_focus_last;
 	ipc_handlers[IPCWindowUnmap]           = ipc_window_unmap;
 	ipc_handlers[IPCWindowMap]             = ipc_window_map;
-	ipc_handlers[IPCGroupAddWindow]        = ipc_group_add_window;
+	ipc_handlers[IPCGroupSwitch]           = ipc_group_switch;
+	ipc_handlers[IPCGroupCombine]          = ipc_group_combine;
+	ipc_handlers[IPCGroupCombineOrToggle]  = ipc_group_combine_or_toggle;
 	ipc_handlers[IPCGroupMoveWindow]       = ipc_group_move_window;
-	ipc_handlers[IPCGroupRemoveWindow]     = ipc_group_remove_window;
-	ipc_handlers[IPCGroupRemoveAllWindows] = ipc_group_remove_all_windows;
-	ipc_handlers[IPCGroupActivate]         = ipc_group_activate;
-	ipc_handlers[IPCGroupDeactivate]       = ipc_group_deactivate;
-	ipc_handlers[IPCGroupToggle]           = ipc_group_toggle;
-	ipc_handlers[IPCGroupActivateSpecific] = ipc_group_activate_specific;
 	ipc_handlers[IPCWMQuit]                = ipc_wm_quit;
 	ipc_handlers[IPCWMConfig]              = ipc_wm_config;
 	ipc_handlers[IPCToggleWindowBorder]    = ipc_toggle_window_border;
@@ -3454,56 +3332,30 @@ ipc_refresh_borders(uint32_t *d)
 }
 
 static void
-ipc_group_add_window(uint32_t *d)
+ipc_group_switch(uint32_t *d)
 {
-	if (focused_win != NULL)
-	    group_add_window(focused_win, d[0] - 1);
+	group_switch(d[0]);
+}
+
+static void
+ipc_group_combine(uint32_t *d)
+{
+	group_combine(d[0]);
+}
+
+static void
+ipc_group_combine_or_toggle(uint32_t *d)
+{
+	group_combine_or_toggle(d[0]);
 }
 
 static void
 ipc_group_move_window(uint32_t *d)
 {
 	if (focused_win != NULL)
-	    group_move_window(focused_win, d[0] - 1);
+		group_move_window(focused_win, d[0]);
 }
 
-static void
-ipc_group_remove_window(uint32_t *d)
-{
-	(void)(d);
-	if (focused_win != NULL)
-	    group_remove_window(focused_win);
-}
-
-static void
-ipc_group_remove_all_windows(uint32_t *d)
-{
-	group_remove_all_windows(d[0] - 1);
-}
-
-static void
-ipc_group_activate(uint32_t *d)
-{
-	group_activate(d[0] - 1);
-}
-
-static void
-ipc_group_deactivate(uint32_t *d)
-{
-	group_deactivate(d[0] - 1);
-}
-
-static void
-ipc_group_toggle(uint32_t *d)
-{
-	group_toggle(d[0] - 1);
-}
-
-static void
-ipc_group_activate_specific(uint32_t *d)
-{
-	group_activate_specific(d[0] - 1);
-}
 
 static void
 ipc_wm_quit(uint32_t *d)
@@ -3581,9 +3433,6 @@ ipc_wm_config(uint32_t *d)
 	    break;
 	case IPCConfigEnableResizeHints:
 	    conf.resize_hints = d[1];
-	    break;
-	case IPCConfigStickyWindows:
-	    conf.sticky_windows = d[1];
 	    break;
 	case IPCConfigEnableBorders:
 	    conf.borders = d[1];
@@ -4009,7 +3858,6 @@ load_defaults(void)
 	conf.groups          = GROUPS;
 	conf.sloppy_focus    = SLOPPY_FOCUS;
 	conf.resize_hints    = RESIZE_HINTS;
-	conf.sticky_windows  = STICKY_WINDOWS;
 	conf.borders         = BORDERS;
 	conf.last_window_focusing = LAST_WINDOW_FOCUSING;
 	conf.apply_settings       = APPLY_SETTINGS;
@@ -4023,6 +3871,9 @@ load_defaults(void)
 	decor.color = conf.unfocus_color[0];
 	decor.side = 0;
 	decor.size = 20;
+
+	groups = ((1 << conf.groups) - 1) & ~1;
+	DMSG("initial groups = %d\n", groups);
 }
 
 static void

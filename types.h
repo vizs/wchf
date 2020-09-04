@@ -111,7 +111,6 @@ struct conf {
 	uint32_t *focus_color, *unfocus_color;
     bool sloppy_focus;
     bool resize_hints;
-    bool sticky_windows;
     bool borders;
     bool last_window_focusing;
     bool apply_settings;

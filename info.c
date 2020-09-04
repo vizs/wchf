@@ -67,13 +67,12 @@ infosetgroupnum(int num)
 }
 
 void
-infosetactivegroups(int len, int nums[])
+infosetactivegroups(int len, int groups)
 {
     FILE *file = fopen("/tmp/info/wm/groups/cur", "w");
     for (int i = 0; i < len; i++) {
-        fprintf(file, "%d", nums[i]);
-        if (i != len - 1)
-            fprintf(file, " ");
+        if ((groups & ~i) == 0)
+			fprintf(file, "%d ", i);
     }
     fclose(file);
 }
