@@ -719,7 +719,7 @@ setup_window(xcb_window_t win)
 	client->monitor = NULL;
 	client->mapped  = client->umapped_user = client->sticky = false;
 	client->bordered = true;
-	client->group   = groups;
+	client->group   = 0;
 	get_geometry(&client->window, &client->geom.x, &client->geom.y,
 	        &client->geom.width, &client->geom.height, &client->depth);
 
@@ -2115,7 +2115,7 @@ group_switch(uint32_t n)
 		client = item->data;
 		if (client == NULL)
 			return;
-		if ((client->group & n) == 0 || client->sticky) {
+		if ((client->group & (1 << n)) == 0 || client->sticky) {
 			map_client(client);
 			if (!client->sticky)
 				set_focused(client);
@@ -2123,7 +2123,8 @@ group_switch(uint32_t n)
 			unmap_client(client);
 	}
 
-	groups = ((1 << conf.groups) - 1) & ~n;
+	groups = ((1 << conf.groups) - 1) & ~(1 << n);
+	DMSG("current group configuration %d\n", groups);
 }
 
 static void
@@ -2134,11 +2135,11 @@ group_combine(uint32_t n)
 
 	for (item = win_list; item != NULL; item = item->next) {
 		client = item->data;
-		if (client != NULL && (client->group & n) == 0)
+		if (client != NULL && (client->group & (1 << n)) == 0)
 			map_client(client);
 	}
 
-	groups &= ~n;
+	groups &= ~(1 << n);
 }
 
 static void
@@ -2149,16 +2150,18 @@ group_combine_or_toggle(uint32_t n)
 		return;
 	}
 
-	/* Unmap clients whose groups do not contain `n'  */
+	/* Unmap clients whose groups contain `n'  */
 	struct list_item *item;
 	struct client *client;
 
 	for (item = win_list; item != NULL; item = item->next) {
 		client = item->data;
-		if (client != NULL && (client->group & n) == 0)
+		if (client != NULL && (client->group & (1 << n)) == 0)
 			unmap_client(client);
 	}
-	groups |= n;
+
+	groups |= 1 << n;
+	DMSG("current group configuration %d\n", groups);
 }
 
 static void
@@ -2170,7 +2173,7 @@ group_move_window(struct client *client, uint32_t n)
 	if ((groups & n) != 0)
 		unmap_client(client);
 
-	client->group = ((1 << conf.groups) - 1) & ~n;
+	client->group = ((1 << conf.groups) - 1) & ~(1 << n);
 }
 
 static void
@@ -2186,22 +2189,24 @@ change_nr_of_groups(uint32_t n)
 		for (item = win_list; item != NULL; item = item->next) {
 			client = item->data;
 			if (client == NULL) continue;
-			for (uint32_t i = conf.groups - n; i <= n; i++)
-				if ((client->group & i) == 0) {
+			for (uint32_t i = conf.groups - n - 1; i < n; i++)
+				if ((client->group & (1 << i)) == 0) {
 					map_client(client);
 					client->group = 0;
+					break;
 				}
 		}
 	} else {
 		int oldgroups = groups;
 
 		groups = (1 << n) - 1;
-		for (uint32_t i = 1; i <= conf.groups; i++)
-			if ((oldgroups & i) == 0)
-				groups &= ~i;
+		for (uint32_t i = 0; i < conf.groups; i++)
+			if ((oldgroups & (1 << i)) == 0)
+				groups &= ~(1 << i);
 	}
 
 	conf.groups = n;
+	DMSG("current group configuration %d\n", groups);
 }
 
 static void
@@ -2687,8 +2692,11 @@ event_map_request(xcb_generic_event_t *ev)
 	    client = setup_window(e->window);
 
 	    /* client is a dock or some kind of window that needs to be ignored */
-	    if (client == NULL)
+	    if (client == NULL) {
 	        return;
+		}
+
+		client->group = groups;
 	}
 
 	xcb_map_window(conn, e->window);
@@ -3334,26 +3342,26 @@ ipc_refresh_borders(uint32_t *d)
 static void
 ipc_group_switch(uint32_t *d)
 {
-	group_switch(d[0]);
+	group_switch(d[0] - 1);
 }
 
 static void
 ipc_group_combine(uint32_t *d)
 {
-	group_combine(d[0]);
+	group_combine(d[0] - 1);
 }
 
 static void
 ipc_group_combine_or_toggle(uint32_t *d)
 {
-	group_combine_or_toggle(d[0]);
+	group_combine_or_toggle(d[0] - 1);
 }
 
 static void
 ipc_group_move_window(uint32_t *d)
 {
 	if (focused_win != NULL)
-		group_move_window(focused_win, d[0]);
+		group_move_window(focused_win, d[0] - 1);
 }
 
 
