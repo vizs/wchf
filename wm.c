@@ -137,6 +137,7 @@ static void group_switch(uint32_t);
 static void group_combine(uint32_t);
 static void group_combine_or_toggle(uint32_t);
 static void group_move_window(struct client *, uint32_t);
+static void group_add_window(struct client *, uint32_t);
 static void change_nr_of_groups(uint32_t);
 
 static void update_group_list(void);
@@ -197,6 +198,7 @@ static void ipc_group_switch(uint32_t *);
 static void ipc_group_combine(uint32_t *);
 static void ipc_group_combine_or_toggle(uint32_t *);
 static void ipc_group_move_window(uint32_t *);
+static void ipc_group_add_window(uint32_t *);
 static void ipc_wm_quit(uint32_t *);
 static void ipc_wm_config(uint32_t *);
 
@@ -2167,13 +2169,20 @@ group_combine_or_toggle(uint32_t n)
 static void
 group_move_window(struct client *client, uint32_t n)
 {
-	/*  if active group does not contain `n'
-	 *  then unmap the client
-     */
-	if ((groups & (1 << n)) != 0)
-		unmap_client(client);
+	if ((groups & (1 << n)) == 0)
+		return;
 
+	unmap_client(client);
 	client->group = ((1 << conf.groups) - 1) & ~(1 << n);
+}
+
+static void
+group_add_window(struct client *client, uint32_t n)
+{
+	if ((groups & (1 << n)) != 0)
+		map_client(client);
+
+	client->group &= ~(1 << n);
 }
 
 static void
@@ -2934,6 +2943,7 @@ register_ipc_handlers(void)
 	ipc_handlers[IPCGroupCombine]          = ipc_group_combine;
 	ipc_handlers[IPCGroupCombineOrToggle]  = ipc_group_combine_or_toggle;
 	ipc_handlers[IPCGroupMoveWindow]       = ipc_group_move_window;
+	ipc_handlers[IPCGroupAddWindow]        = ipc_group_add_window;
 	ipc_handlers[IPCWMQuit]                = ipc_wm_quit;
 	ipc_handlers[IPCWMConfig]              = ipc_wm_config;
 	ipc_handlers[IPCToggleWindowBorder]    = ipc_toggle_window_border;
@@ -3364,6 +3374,12 @@ ipc_group_move_window(uint32_t *d)
 		group_move_window(focused_win, d[0] - 1);
 }
 
+static void
+ipc_group_add_window(uint32_t *d)
+{
+	if (focused_win != NULL)
+		group_add_window(focused_win, d[0] - 1);
+}
 
 static void
 ipc_wm_quit(uint32_t *d)
@@ -3878,7 +3894,7 @@ load_defaults(void)
 
 	decor.color = conf.unfocus_color[0];
 	decor.side = 0;
-	decor.size = 20;
+	decor.size = 0;
 
 	groups = ((1 << conf.groups) - 1) & ~1;
 	DMSG("initial groups = %d\n", groups);

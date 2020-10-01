@@ -37,6 +37,7 @@ enum IPCCommand {
 	IPCGroupCombine,
 	IPCGroupCombineOrToggle,
 	IPCGroupMoveWindow,
+	IPCGroupAddWindow,
     IPCWMQuit,
     IPCWMConfig,
 	IPCToggleWindowBorder,
